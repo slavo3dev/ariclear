@@ -1,26 +1,24 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* 1) Define your custom Ari colors using @theme (Tailwind v4 way) */
+@theme {
+  --color-choco-50:  #fdf9f6;
+  --color-choco-100: #f8eee6;
+  --color-choco-200: #edd6c3;
+  --color-choco-300: #dfb391;
+  --color-choco-400: #cf8b5c;
+  --color-choco-500: #b86a3f; /* main accent */
+  --color-choco-600: #964b2e;
+  --color-choco-700: #703526;
+  --color-choco-800: #4a2319;
+  --color-choco-900: #2b1510;
+
+  --color-cream-50:  #fefcf8;
+  --color-cream-100: #f9f3e7;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* 2) Global defaults using those utilities */
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-cream-50 text-choco-900 antialiased;
 }
