@@ -13,12 +13,27 @@ export function PreorderForm({
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handlePreorder = (e: FormEvent) => {
+  const handlePreorder = async (e: FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
     setLoading(true);
     setSubmitted(false);
+
+    try {
+    const res = await fetch("/api/preorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, url }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      console.error("Preorder error:", json);
+      setLoading(false);
+      return;
+    }
 
     setTimeout(() => {
       setLoading(false);
@@ -27,7 +42,11 @@ export function PreorderForm({
       setUrl("");
       onSuccess?.();
     }, 800);
-  };
+  } catch (error) {
+    console.error("Network error:", error);
+    setLoading(false);
+  } 
+};
 
   return (
     <form
