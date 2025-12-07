@@ -14,13 +14,16 @@ export function HeroSection() {
     if (!email) return;
 
     setLoading(true);
-    setSubmitted(false);
+    setSubmitted( false );
+    
+    const sourceURL =
+    typeof window !== "undefined" ? window.location.href : "unknown";
 
     try {
       const res = await fetch("/api/preorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, url }),
+        body: JSON.stringify({ email, url, sourceURL}),
       });
 
       const json = await res.json();

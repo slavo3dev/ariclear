@@ -5,7 +5,7 @@ import { supabaseServer } from "../../lib/supabaseServer"; // adjust path if nee
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, url } = body ?? {};
+    const { email, url, sourceURL } = body ?? {};
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabaseServer
       .from("mailcollection")
-      .insert([{ email: emailClean, url: urlClean }])
+      .insert([{ email: emailClean, url: urlClean, sourceURL }])
       .select()
       .limit(1);
 
@@ -35,7 +35,6 @@ export async function POST(req: NextRequest) {
     { status: 500 }
   );
   }
-  console.log("🔥 API reached...");
 
 
 }
