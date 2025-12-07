@@ -1,6 +1,6 @@
-// src/components/sections/PricingSection.tsx
+"use client";
 
-import { Button } from "@ariclear/components";
+import { Button, usePreorder } from "@ariclear/components";
 
 interface PricingCardProps {
   label: string;
@@ -10,6 +10,7 @@ interface PricingCardProps {
   description: string;
   features: string[];
   highlight?: boolean;
+  onClick: () => void;
 }
 
 function PricingCard({
@@ -20,6 +21,7 @@ function PricingCard({
   description,
   features,
   highlight,
+  onClick,
 }: PricingCardProps) {
   return (
     <div
@@ -72,6 +74,7 @@ function PricingCard({
       <Button
         type="button"
         className="mt-2 w-full justify-center"
+        onClick={onClick}
       >
         {price === "Free" ? "Start with Starter" : "Get Solo Builder"}
       </Button>
@@ -79,7 +82,10 @@ function PricingCard({
   );
 }
 
-export function PricingSection() {
+export function PricingSection () {
+  
+  const { open } = usePreorder();
+
   return (
     <section
       id="pricing"
@@ -116,7 +122,8 @@ export function PricingSection() {
               "Basic suggestions to improve clarity",
               "Basic AI prompt to rewrite your hero headline",
               "Up to 3 scans per month",
-            ]}
+            ] }
+            onClick={open}
           />
 
           <PricingCard
@@ -136,6 +143,7 @@ export function PricingSection() {
               "Exportable reports for yourself or clients",
             ]}
             highlight
+            onClick={open}
           />
         </div>
 
