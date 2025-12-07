@@ -1,4 +1,4 @@
-import { Navbar, SiteFooter, HeroSection, HowItWorksSection, WhoItsForSection } from "@ariclear/components";
+import { Navbar, SiteFooter, HeroSection, HowItWorksSection, WhoItsForSection,  PricingSection} from "@ariclear/components";
 
 
 export default function HomePage() {
@@ -10,6 +10,7 @@ export default function HomePage() {
         <HeroSection />
         <HowItWorksSection />
         <WhoItsForSection />
+        <PricingSection />
       </main>
 
       <SiteFooter />
