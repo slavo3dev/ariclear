@@ -3,30 +3,45 @@
 import { FormEvent, useState } from "react";
 import { Button } from "@ariclear/components";
 
-export function PreorderForm({
-  onSuccess,
-}: {
-  onSuccess?: () => void;
-}) {
+export function PreorderForm({ onSuccess }: { onSuccess?: () => void }) {
   const [email, setEmail] = useState("");
   const [url, setUrl] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handlePreorder = (e: FormEvent) => {
+  const handlePreorder = async (e: FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
     setLoading(true);
     setSubmitted(false);
 
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/preorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, url }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        console.error("Preorder error:", json);
+        setLoading(false);
+        return;
+      }
+
+      setTimeout(() => {
+        setLoading(false);
+        setSubmitted(true);
+        setEmail("");
+        setUrl("");
+        onSuccess?.();
+      }, 800);
+    } catch (error) {
+      console.error("Network error:", error);
       setLoading(false);
-      setSubmitted(true);
-      setEmail("");
-      setUrl("");
-      onSuccess?.();
-    }, 800);
+    }
   };
 
   return (
@@ -72,11 +87,7 @@ export function PreorderForm({
             className="w-full rounded-full border border-choco-700 bg-choco-800 px-4 py-2 text-sm text-cream-50 placeholder:text-choco-400 focus:border-choco-400 focus:outline-none focus:ring-1 focus:ring-choco-400"
           />
 
-          <Button
-            type="submit"
-            className="shrink-0 sm:px-6"
-            disabled={loading}
-          >
+          <Button type="submit" className="shrink-0 sm:px-6" disabled={loading}>
             {loading ? "Saving..." : "Reserve my spot"}
           </Button>
         </div>

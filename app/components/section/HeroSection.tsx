@@ -9,19 +9,38 @@ export function HeroSection() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handlePreorder = (e: FormEvent) => {
+  const handlePreorder = async (e: FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
     setLoading(true);
+    setSubmitted(false);
 
-    // Later: hook to API / Supabase / email provider
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/preorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, url }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        console.error("Preorder error:", json);
+        setLoading(false);
+        return;
+      }
+
+      setTimeout(() => {
+        setLoading(false);
+        setSubmitted(true);
+        setEmail("");
+        setUrl("");
+      }, 800);
+    } catch (error) {
+      console.error("Network error:", error);
       setLoading(false);
-      setSubmitted(true);
-      setEmail("");
-      setUrl("");
-    }, 800);
+    }
   };
 
   return (
@@ -42,8 +61,8 @@ export function HeroSection() {
           <p className="max-w-xl text-base leading-relaxed text-choco-700 sm:text-lg">
             AriClear analyzes your homepage like a first-time visitor and like
             an AI model. It shows whether people understand what you do in about
-            10 seconds—and whether AI can correctly read, classify, and use
-            your content.
+            10 seconds—and whether AI can correctly read, classify, and use your
+            content.
           </p>
 
           <ul className="space-y-2 text-sm text-choco-700">
