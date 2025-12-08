@@ -13,11 +13,16 @@ export async function POST(req: NextRequest) {
 
     // Basic server-side sanitation/trim
     const emailClean = email.trim().toLowerCase();
-    const urlClean = typeof url === "string" && url.trim().length ? url.trim() : null;
+    const urlClean =
+      typeof url === "string" && url.trim().length ? url.trim() : null;
+    const siteUrlClean =
+      typeof sourceURL === "string" && sourceURL.trim().length > 0
+        ? sourceURL.trim()
+        : null;
 
     const { data, error } = await supabaseServer
       .from("mailcollection")
-      .insert([{ email: emailClean, url: urlClean, sourceURL }])
+      .insert([{ email: emailClean, url: urlClean, sourceURL: siteUrlClean }])
       .select()
       .limit(1);
 
@@ -26,15 +31,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, row: data?.[0] ?? null }, { status: 201 });
-  } catch (err: unknown) {
-    const message =
-    err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-    { error: message },
-    { status: 500 }
-  );
+      { ok: true, row: data?.[0] ?? null },
+      { status: 201 }
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-
 }
