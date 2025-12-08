@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { PreorderProvider } from "@ariclear/components";
+import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
   title: "AriClear – Website clarity in 10 seconds",
@@ -17,7 +18,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-cream-50 text-choco-900">
-         <PreorderProvider>{children}</PreorderProvider>
+        <PreorderProvider>{ children }</PreorderProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: "#3f2f21", 
+                color: "#fdf8f4",     
+                borderRadius: "999px",
+                fontSize: "12px",
+                padding: "8px 14px",
+              },
+            }}
+          />
       </body>
     </html>
   );

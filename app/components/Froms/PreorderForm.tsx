@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { Button } from "@ariclear/components";
+import { preorderRequest } from "@ariclear/helpers";
+import { toast } from "react-hot-toast";
 
 export function PreorderForm({ onSuccess }: { onSuccess?: () => void }) {
   const [email, setEmail] = useState("");
@@ -14,36 +16,21 @@ export function PreorderForm({ onSuccess }: { onSuccess?: () => void }) {
     if (!email) return;
 
     setLoading(true);
-    setSubmitted( false );
-    
-  // Detect source URL (full URL or just domain)
-  const sourceURL =
-    typeof window !== "undefined" ? window.location.href : "unknown";
+    setSubmitted(false);
 
     try {
-      const res = await fetch("/api/preorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, url, sourceURL }),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        console.error("Preorder error:", json);
-        setLoading(false);
-        return;
-      }
+      await preorderRequest({ email, url });
 
       setTimeout(() => {
         setLoading(false);
         setSubmitted(true);
         setEmail("");
-        setUrl("");
+        setUrl( "" );
+        toast.success("You're in! Check your email soon.");
         onSuccess?.();
       }, 800);
     } catch (error) {
-      console.error("Network error:", error);
+      console.error("Preorder error:", error);
       setLoading(false);
     }
   };

@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { Button, HeroPreviewCard } from "@ariclear/components";
+import { preorderRequest } from "@ariclear/helpers";
+
 
 export function HeroSection() {
   const [email, setEmail] = useState("");
@@ -9,42 +11,28 @@ export function HeroSection() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handlePreorder = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
+ const handlePreorder = async (e: FormEvent) => {
+  e.preventDefault();
+  if (!email) return;
 
-    setLoading(true);
-    setSubmitted( false );
-    
-    const sourceURL =
-    typeof window !== "undefined" ? window.location.href : "unknown";
+  setLoading(true);
+  setSubmitted(false);
 
-    try {
-      const res = await fetch("/api/preorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, url, sourceURL}),
-      });
+  try {
+    await preorderRequest({ email, url });
 
-      const json = await res.json();
-
-      if (!res.ok) {
-        console.error("Preorder error:", json);
-        setLoading(false);
-        return;
-      }
-
-      setTimeout(() => {
-        setLoading(false);
-        setSubmitted(true);
-        setEmail("");
-        setUrl("");
-      }, 800);
-    } catch (error) {
-      console.error("Network error:", error);
+    setTimeout(() => {
       setLoading(false);
-    }
-  };
+      setSubmitted(true);
+      setEmail("");
+      setUrl("");
+    }, 800);
+
+  } catch (error) {
+    console.error("Preorder error:", error);
+    setLoading(false);
+  }
+};
 
   return (
     <section className="bg-gradient-to-b from-cream-50 to-cream-100">
