@@ -1,4 +1,3 @@
-
 export interface PreorderPayload {
   email: string;
   url?: string;
@@ -22,13 +21,16 @@ export async function preorderRequest({ email, url }: PreorderPayload) {
 
   try {
     json = await res.json();
+    if (res.status === 409) {
+      return { ok: false, duplicate: true, error: json.error };
+    }
   } catch (e) {
     console.error("Invalid JSON response from preorder API");
   }
 
   if (!res.ok) {
-    throw new Error(json?.error || "Preorder request failed");
+    return { ok: false, error: json?.error || "Request failed" };
   }
 
-  return json;
+  return { ok: true, data: json };
 }

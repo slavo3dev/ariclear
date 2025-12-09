@@ -19,13 +19,27 @@ export function PreorderForm({ onSuccess }: { onSuccess?: () => void }) {
     setSubmitted(false);
 
     try {
-      await preorderRequest({ email, url });
+      const result = await preorderRequest({ email, url });
+
+      // ❌ Duplicate email
+      if (result.duplicate) {
+        setLoading(false);
+        toast.error("This email is already registered.");
+        return;
+      }
+
+      // ❌ Other errors
+      if (!result.ok) {
+        setLoading(false);
+        toast.error(result.error || "Something went wrong.");
+        return;
+      }
 
       setTimeout(() => {
         setLoading(false);
         setSubmitted(true);
         setEmail("");
-        setUrl( "" );
+        setUrl("");
         toast.success("You're in! Check your email soon.");
         onSuccess?.();
       }, 800);

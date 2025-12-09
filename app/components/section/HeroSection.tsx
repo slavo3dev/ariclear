@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { Button, HeroPreviewCard } from "@ariclear/components";
 import { preorderRequest } from "@ariclear/helpers";
-
+import { toast } from "react-hot-toast";
 
 export function HeroSection() {
   const [email, setEmail] = useState("");
@@ -11,28 +11,41 @@ export function HeroSection() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
- const handlePreorder = async (e: FormEvent) => {
-  e.preventDefault();
-  if (!email) return;
+  const handlePreorder = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
 
-  setLoading(true);
-  setSubmitted(false);
+    setLoading(true);
+    setSubmitted(false);
 
-  try {
-    await preorderRequest({ email, url });
+    try {
+      const result = await preorderRequest({ email, url });
 
-    setTimeout(() => {
+      // ❌ Duplicate email
+      if (result.duplicate) {
+        setLoading(false);
+        toast.error("This email is already registered.");
+        return;
+      }
+
+      // ❌ Other errors
+      if (!result.ok) {
+        setLoading(false);
+        toast.error(result.error || "Something went wrong.");
+        return;
+      }
+
+      setTimeout(() => {
+        setLoading(false);
+        setSubmitted(true);
+        setEmail("");
+        setUrl("");
+      }, 800);
+    } catch (error) {
+      console.error("Preorder error:", error);
       setLoading(false);
-      setSubmitted(true);
-      setEmail("");
-      setUrl("");
-    }, 800);
-
-  } catch (error) {
-    console.error("Preorder error:", error);
-    setLoading(false);
-  }
-};
+    }
+  };
 
   return (
     <section className="bg-gradient-to-b from-cream-50 to-cream-100">
