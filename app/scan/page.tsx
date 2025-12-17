@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Navbar, SiteFooter, Button } from "@ariclear/components";
+import { usePreorder } from "@ariclear/components/providers/PreorderProvider";
 
 type AnalyzeResponse = {
   human?: {
@@ -27,6 +28,7 @@ export default function ScanPage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const { open } = usePreorder();
 
   const onAnalyze = async () => {
     if (!targetUrl) return;
@@ -157,7 +159,7 @@ export default function ScanPage() {
                     <p className="mt-1 text-sm text-choco-700">
                       {result.copy?.suggestedSubheadline ?? ""}
                     </p>
-                    <div className="mt-3 inline-flex rounded-full bg-choco-900 px-4 py-2 text-[11px] font-medium text-cream-50">
+                    <div className="mt-3 inline-flex rounded-full bg-choco-900 px-4 py-2 text-[11px] font-medium text-cream-50" onClick={open}>
                       {result.copy?.suggestedCTA ?? ""}
                     </div>
                   </div>
