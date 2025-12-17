@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@ariclear/components";
 import { usePreorder } from "@ariclear/components";
+import Image from "next/image";
 
 export function Navbar() {
   const { open } = usePreorder();
@@ -28,19 +29,24 @@ export function Navbar() {
     <header className="sticky top-0 z-20 border-b border-choco-100 bg-cream-50/80 backdrop-blur-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         {/* Logo / Branding (clickable) */}
-        <Link
-          href="/"
+      <Link href="/"
           className="group inline-flex items-center gap-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-choco-400"
           aria-label="Go to homepage"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-choco-800 text-cream-50 shadow-soft transition group-hover:bg-choco-900">
-            <span className="text-lg font-semibold">A</span>
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-choco-800 shadow-soft transition group-hover:bg-choco-900 overflow-hidden">
+            <Image
+              src="/branding/arilogo-optimized.png"
+              alt="AriClear logo"
+              width={36}
+              height={36}
+              priority
+              className="object-contain"
+            />
           </div>
-
           <span className="text-lg font-semibold tracking-tight text-choco-900">
             AriClear
           </span>
-        </Link>
+      </Link>
 
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-4 text-sm text-choco-700 md:flex">

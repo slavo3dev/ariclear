@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   title: "AriClear — Do humans and AI understand your website?",
   description:
     "AriClear analyzes your homepage like a first-time visitor and like an AI model, showing whether humans and AI understand what your website does.",
+  icons: {
+    icon: "/branding/arilogofavicon.png",
+    shortcut: "/branding/arilogofavicon.png",
+    apple: "/branding/arilogofavicon.png",
+  },
 };
 
 export default function RootLayout({
