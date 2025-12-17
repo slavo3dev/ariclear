@@ -30,7 +30,9 @@ export function Navbar() {
           <a href="#who-its-for" className="hover:text-choco-900">
             Who it&apos;s for
           </a>
-
+          <a href="/scan" className="hover:text-choco-900">
+            Try demo
+          </a>
           <Button
             className="px-4 py-1.5 text-xs"
             type="button"
