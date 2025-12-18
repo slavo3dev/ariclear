@@ -89,36 +89,36 @@ export async function POST(req: Request) {
     const extracted = extractTextFromHtml(html);
 
     const instructions = `
-You are AriClear, a website clarity + AI SEO comprehension auditor.
+      You are AriClear, a website clarity + AI SEO comprehension auditor.
+      
+      Analyze the provided page content.
 
-Analyze the provided page content.
+      Return ONLY a valid JSON object with this EXACT shape (no extra keys, no markdown):
 
-Return ONLY a valid JSON object with this EXACT shape (no extra keys, no markdown):
+      {
+        "human": {
+          "clarityScore": number (0-100),
+          "whatItSeemsLike": string,
+          "confusions": string[] (3-6 items)
+        },
+        "ai": {
+          "aiSeoScore": number (0-100),
+          "aiSummary": string,
+          "missingKeywords": string[] (5-10 items)
+        },
+        "copy": {
+          "suggestedHeadline": string,
+          "suggestedSubheadline": string,
+          "suggestedCTA": string
+        }
+      }
 
-{
-  "human": {
-    "clarityScore": number (0-100),
-    "whatItSeemsLike": string,
-    "confusions": string[] (3-6 items)
-  },
-  "ai": {
-    "aiSeoScore": number (0-100),
-    "aiSummary": string,
-    "missingKeywords": string[] (5-10 items)
-  },
-  "copy": {
-    "suggestedHeadline": string,
-    "suggestedSubheadline": string,
-    "suggestedCTA": string
-  }
-}
-
-Guidelines:
-- "human.clarityScore": based on whether a first-time visitor understands what the site does in ~10 seconds.
-- "ai.aiSeoScore": based on whether an AI model can classify the site and extract keywords cleanly.
-- Keep suggestions specific and actionable, not generic.
-- Make the suggested headline/subheadline/CTA match what the site actually offers.
-`.trim();
+      Guidelines:
+      - "human.clarityScore": based on whether a first-time visitor understands what the site does in ~10 seconds.
+      - "ai.aiSeoScore": based on whether an AI model can classify the site and extract keywords cleanly.
+      - Keep suggestions specific and actionable, not generic.
+      - Make the suggested headline/subheadline/CTA match what the site actually offers.
+      `.trim();
 
     // ✅ Chat Completions + JSON mode (works with openai@6.14.0)
     const completion = await client.chat.completions.create({
