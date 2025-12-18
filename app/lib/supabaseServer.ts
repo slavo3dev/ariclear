@@ -11,3 +11,9 @@ export const supabaseServer = createClient(url, serviceRoleKey, {
   // explicit: enforce server usage, no auth in this helper
   auth: { persistSession: false },
 });
+
+
+export const supabaseAriClear = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_ARICLEARURL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ARICLEAR_ANON_KEY!,
+);
