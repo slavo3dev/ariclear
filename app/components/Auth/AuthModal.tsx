@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { supabaseAriClear } from "@ariclear/lib";
+import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 import { Button } from "@ariclear/components";
 
 type Mode = "login" | "signup";
@@ -22,8 +22,9 @@ export function AuthModal({
   const [error, setError] = useState<string | null>(null);
 
   const title = useMemo(
-    () => (mode === "login" ? "Log in to AriClear" : "Create your AriClear account"),
-    [mode],
+    () =>
+      mode === "login" ? "Log in to AriClear" : "Create your AriClear account",
+    [mode]
   );
 
   if (!open) return null;
@@ -35,17 +36,23 @@ export function AuthModal({
 
     try {
       if (mode === "login") {
-        const { error } = await supabaseAriClear.auth.signInWithPassword({ email, password });
+        const { error } = await supabaseAriClear.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (error) throw error;
         onClose();
       } else {
-        const { error } = await supabaseAriClear.auth.signUp({ email, password });
+        const { error } = await supabaseAriClear.auth.signUp({
+          email,
+          password,
+        });
         if (error) throw error;
         onClose();
       }
-       
+
       // TODO: handle post-signup actions (e.g., email verification)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err?.message ?? "Auth error");
     } finally {
@@ -67,7 +74,9 @@ export function AuthModal({
             <p className="text-[11px] uppercase tracking-[0.16em] text-choco-300">
               Secure access
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-cream-50">{title}</h2>
+            <h2 className="mt-1 text-xl font-semibold text-cream-50">
+              {title}
+            </h2>
             <p className="mt-1 text-xs text-choco-200">
               Access the demo and save scans to your account.
             </p>
@@ -119,13 +128,23 @@ export function AuthModal({
             </p>
           ) : null}
 
-          <Button type="submit" className="w-full justify-center" disabled={loading}>
-            {loading ? "Please wait..." : mode === "login" ? "Log in" : "Create account"}
+          <Button
+            type="submit"
+            className="w-full justify-center"
+            disabled={loading}
+          >
+            {loading
+              ? "Please wait..."
+              : mode === "login"
+              ? "Log in"
+              : "Create account"}
           </Button>
 
           <div className="flex items-center justify-between text-xs text-choco-200">
             <span>
-              {mode === "login" ? "No account yet?" : "Already have an account?"}
+              {mode === "login"
+                ? "No account yet?"
+                : "Already have an account?"}
             </span>
             <button
               type="button"

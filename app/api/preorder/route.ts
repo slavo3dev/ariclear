@@ -1,6 +1,6 @@
 // app/api/preorder/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseServer } from "../../lib/supabaseServer"; // adjust path if needed
+import { supabaseMailServer } from "@ariclear/lib/supabase/mail/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,9 +13,10 @@ export async function POST(req: NextRequest) {
 
     // Basic server-side sanitation/trim
     const emailClean = email.trim().toLowerCase();
-    const urlClean = typeof url === "string" && url.trim().length ? url.trim() : null;
+    const urlClean =
+      typeof url === "string" && url.trim().length ? url.trim() : null;
 
-    const { data, error } = await supabaseServer
+    const { data, error } = await supabaseMailServer
       .from("mailcollection")
       .insert([{ email: emailClean, url: urlClean, sourceURL }])
       .select()
@@ -26,15 +27,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, row: data?.[0] ?? null }, { status: 201 });
-  } catch (err: unknown) {
-    const message =
-    err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-    { error: message },
-    { status: 500 }
-  );
+      { ok: true, row: data?.[0] ?? null },
+      { status: 201 }
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-
 }
