@@ -8,4 +8,3 @@ if (!url || !anonKey) {
 }
 
 export const supabaseAriClear = createClient(url, anonKey);
-
