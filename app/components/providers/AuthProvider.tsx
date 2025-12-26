@@ -1,8 +1,15 @@
 "use client";
 
-import { createContext, SetStateAction, useContext, useEffect, useMemo, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabaseAriClear } from "@ariclear/lib";
+import {
+  createContext,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
+import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 
 type AuthContextValue = {
   user: User | null;
@@ -29,12 +36,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     })();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sub } = supabaseAriClear.auth.onAuthStateChange((_event: any, nextSession: Session | null) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setLoading(false);
-    });
+    const { data: sub } = supabaseAriClear.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, nextSession: Session | null) => {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        setLoading(false);
+      }
+    );
 
     return () => {
       mounted = false;
@@ -51,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabaseAriClear.auth.signOut();
       },
     }),
-    [user, session, loading],
+    [user, session, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
