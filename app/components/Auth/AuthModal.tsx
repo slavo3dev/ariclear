@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 import { Button } from "@ariclear/components";
+import { api } from "@ariclear/lib/api/axios";
+import { useAuth } from "../providers/AuthProvider";
 
 type Mode = "login" | "signup" | "reset";
 
@@ -21,6 +22,8 @@ export function AuthModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const { user } = useAuth();
 
   const title = useMemo(() => {
     switch (mode) {
@@ -43,40 +46,42 @@ export function AuthModal({
 
     try {
       if (mode === "login") {
-        const { error } = await supabaseAriClear.auth.signInWithPassword({
+        await api.post("/auth/login", {
           email,
           password,
         });
-        if (error) throw error;
+        console.log(user);
         onClose();
       }
 
       if (mode === "signup") {
-        const { error } = await supabaseAriClear.auth.signUp({
+        await api.post("/auth/signup", {
           email,
           password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/verify-email`,
-          },
+          redirectTo: `${window.location.origin}/verify-email`,
         });
-        if (error) throw error;
 
         setSuccess("Check your email to verify your account.");
       }
 
       if (mode === "reset") {
-        const { error } = await supabaseAriClear.auth.resetPasswordForEmail(
+        await api.post("/auth/reset", {
           email,
-          {
-            redirectTo: `${window.location.origin}/reset-password`,
-          }
-        );
-        if (error) throw error;
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
 
         setSuccess("Password reset email sent.");
       }
-    } catch (err: Error | unknown) {
-      const message = err instanceof Error ? err.message : "Auth error";
+    } catch (err: unknown) {
+      let message = "Authentication error";
+
+      if (err instanceof Error) {
+        message = err.message;
+      } else if (err && typeof err === "object" && "response" in err) {
+        const apiError = err as { response?: { data?: { message?: string } } };
+        message = apiError.response?.data?.message ?? message;
+      }
+
       setError(message);
     } finally {
       setLoading(false);
@@ -85,6 +90,7 @@ export function AuthModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      {/* Backdrop */}
       <button
         aria-label="Close"
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -128,7 +134,7 @@ export function AuthModal({
             />
           </div>
 
-          {/* Password (not in reset mode) */}
+          {/* Password */}
           {mode !== "reset" && (
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-[0.12em] text-choco-300">
@@ -170,7 +176,7 @@ export function AuthModal({
               : "Send reset email"}
           </Button>
 
-          {/* Footer actions */}
+          {/* Footer */}
           <div className="flex justify-between text-xs text-choco-200">
             {mode === "login" && (
               <button
