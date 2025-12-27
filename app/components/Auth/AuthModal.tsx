@@ -166,7 +166,7 @@ export function AuthModal({
           )}
 
           {/* Submit */}
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button className="w-full" disabled={loading}>
             {loading
               ? "Please wait..."
               : mode === "login"
@@ -180,7 +180,6 @@ export function AuthModal({
           <div className="flex justify-between text-xs text-choco-200">
             {mode === "login" && (
               <button
-                type="button"
                 onClick={() => setMode("reset")}
                 className="hover:underline"
               >
@@ -189,7 +188,6 @@ export function AuthModal({
             )}
 
             <button
-              type="button"
               onClick={() => setMode(mode === "login" ? "signup" : "login")}
               className="hover:underline"
             >
