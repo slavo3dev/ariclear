@@ -23,7 +23,7 @@ export function AuthModal({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const { user } = useAuth();
+  const { refreshUser } = useAuth();
 
   const title = useMemo(() => {
     switch (mode) {
@@ -50,7 +50,7 @@ export function AuthModal({
           email,
           password,
         });
-        console.log(user);
+        await refreshUser();
         onClose();
       }
 
