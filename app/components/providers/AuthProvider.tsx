@@ -1,57 +1,48 @@
 "use client";
 
-import { createContext, SetStateAction, useContext, useEffect, useMemo, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabaseAriClear } from "@ariclear/lib";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+import { api } from "@ariclear/lib/api/axios";
 
 type AuthContextValue = {
   user: User | null;
-  session: Session | null;
   loading: boolean;
+  refreshUser: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchUser = async () => {
+    try {
+      const { data } = await api.get("/auth/user");
+      setUser(data.user ?? null);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      const { data } = await supabaseAriClear.auth.getSession();
-      if (!mounted) return;
-      setSession(data.session ?? null);
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    })();
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sub } = supabaseAriClear.auth.onAuthStateChange((_event: any, nextSession: Session | null) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
+    fetchUser();
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      session,
       loading,
+      refreshUser: fetchUser,
       signOut: async () => {
-        await supabaseAriClear.auth.signOut();
+        await api.post("/auth/logout");
+        setUser(null);
       },
     }),
-    [user, session, loading],
+    [user, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
