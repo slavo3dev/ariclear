@@ -7,3 +7,5 @@ pnpm dev
 ```
 
 ## Tech Stack
+- nextjs
+- supabase
