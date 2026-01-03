@@ -25,12 +25,22 @@ export function PreorderForm({ onSuccess }: { onSuccess?: () => void }) {
         setLoading(false);
         setSubmitted(true);
         setEmail("");
-        setUrl( "" );
+        setUrl("");
         toast.success("You're in! Check your email soon.");
         onSuccess?.();
       }, 800);
     } catch (error) {
-      console.error("Preorder error:", error);
+      const message =
+        error instanceof Error ? error.message : "Something went wrong";
+
+      if (message === "EMAIL_EXISTS") {
+        toast("You’re already on the waitlist 👀", {
+          icon: "ℹ️",
+        });
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
+
       setLoading(false);
     }
   };
