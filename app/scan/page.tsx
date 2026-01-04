@@ -80,116 +80,168 @@ function Pill({ value }: { value: "high" | "medium" | "low" }) {
   );
 }
 
-/** Small animated dots: “Analyzing…” */
-function LoadingDots() {
+
+
+function LoadingDots({ step }: { step: number }) {
   return (
-    <span className="inline-flex items-end gap-1">
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cream-50 [animation-delay:-0.2s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cream-50 [animation-delay:-0.1s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cream-50" />
+    <span className="inline-flex gap-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={[
+            "inline-block h-1.5 w-1.5 rounded-full transition-all duration-300",
+            step % 3 === i
+              ? "bg-choco-300 scale-125"
+              : "bg-choco-600/60 scale-90",
+          ].join(" ")}
+        />
+      ))}
     </span>
   );
 }
 
-/** Fullscreen Ari overlay shown during analysis */
 function AriAnalyzingOverlay({ url }: { url: string }) {
-  const statuses = useMemo(
+  const steps = useMemo(
     () => [
-      "Sniffing your hero message",
-      "Checking what humans understand in 10 seconds",
-      "Reading headings like an AI indexer",
-      "Looking for missing keywords & context",
-      "Building your action plan",
+      {
+        label: "Human scan",
+        status: "Sniffing your hero message",
+        quote: {
+          text: "The first battle is won or lost in the opening moment.",
+          by: "Samurai principle",
+        },
+      },
+      {
+        label: "10-second test",
+        status: "Testing what humans understand in 10 seconds",
+        quote: {
+          text: "If it is not clear, it is not yet true.",
+          by: "AriClear mantra",
+        },
+      },
+      {
+        label: "AI read",
+        status: "Reading headings like an AI indexer",
+        quote: {
+          text: "To know the path ahead, ask those coming back.",
+          by: "Japanese proverb",
+        },
+      },
+      {
+        label: "Keywords",
+        status: "Identifying missing context and keywords",
+        quote: {
+          text: "Victory comes from seeing what others do not.",
+          by: "Miyamoto Musashi (paraphrase)",
+        },
+      },
+      {
+        label: "Plan",
+        status: "Forming a clear plan of action",
+        quote: {
+          text: "Perceive that which cannot be seen with the eye.",
+          by: "Miyamoto Musashi",
+        },
+      },
     ],
     [],
   );
 
-  const quotes = useMemo(
-    () => [
-      {
-        quote:
-          "If you set your heart right each morning and evening, you can live as though your body were already dead.",
-        by: "Hagakure (paraphrase)",
-      },
-      {
-        quote: "Victory belongs to the one who prepares — calmly and completely.",
-        by: "Samurai principle",
-      },
-      {
-        quote: "Clarity is discipline: say the truth in fewer words.",
-        by: "AriClear mantra",
-      },
-    ],
-    [],
-  );
-
-  const [i, setI] = useState(0);
+  const STEP_DURATION = 2200; // ⏱️ slower, calmer
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
     const t = window.setInterval(() => {
-      setI((v) => v + 1);
-    }, 1400);
+      setStep((v) => (v < steps.length - 1 ? v + 1 : v));
+    }, STEP_DURATION);
 
     return () => window.clearInterval(t);
-  }, []);
+  }, [steps.length]);
 
-  const status = statuses[i % statuses.length];
-  const q = quotes[i % quotes.length];
+  const current = steps[step];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-choco-900/70 backdrop-blur-sm"
-      aria-live="polite"
-      aria-busy="true"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-choco-900/70 backdrop-blur-sm">
       <div className="mx-4 w-full max-w-md rounded-3xl bg-choco-900 p-6 shadow-2xl ring-1 ring-choco-700">
-        <div className="relative mx-auto flex w-full flex-col items-center">
-          {/* Center “sniffing” animation */}
+        <div className="flex flex-col items-center text-center">
+          {/* Ari animation */}
           <div className="relative flex h-28 w-28 items-center justify-center">
-            <div className="absolute inset-0 rounded-full border border-choco-600/70" />
-            <div className="absolute inset-[-10px] rounded-full border border-choco-700/40" />
-            <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-choco-400/80 [animation-duration:1.2s]" />
-            <div className="absolute inset-2 animate-pulse rounded-full bg-choco-800/40" />
+            <div className="absolute inset-0 animate-pulse rounded-full bg-choco-800/40" />
+            <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-choco-400/70 [animation-duration:2.6s]" />
 
-            <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-choco-800 shadow-soft">
+           <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-choco-800 shadow-soft">
               <Image
                 src="/branding/arilogo-optimized.png"
                 alt="AriClear"
                 fill
-                className="object-contain p-2"
                 priority
+                sizes="80px"
+                className="object-contain p-2"
               />
+            </div>
+
+          </div>
+
+          {/* Status */}
+          <div className="mt-4 flex items-center gap-2 rounded-full bg-choco-800 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-choco-200">
+            Ari is sniffing <LoadingDots step={step} />
+          </div>
+
+          <p className="mt-3 text-sm font-medium text-cream-50">
+            {current.status}
+          </p>
+
+          {url && (
+            <p className="mt-1 max-w-full truncate text-[11px] text-choco-300">
+              {url}
+            </p>
+          )}
+
+          {/* Step progress */}
+          <div className="mt-4 w-full">
+            <div className="flex gap-2">
+              {steps.map((_, i) => (
+                <div
+                  key={i}
+                  className={[
+                    "h-2 flex-1 rounded-full transition-all",
+                    i < step
+                      ? "bg-choco-400"
+                      : i === step
+                      ? "bg-choco-700"
+                      : "bg-choco-800",
+                  ].join(" ")}
+                />
+              ))}
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-choco-400">
+              <span>{current.label}</span>
+              <span>
+                {step + 1}/{steps.length}
+              </span>
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 rounded-full bg-choco-800 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-choco-200">
-            Ari is sniffing <LoadingDots />
-          </div>
-
-          <p className="mt-3 text-center text-sm font-medium text-cream-50">
-            {status}
-          </p>
-
-          {/* ✅ Use the url */}
-          {url ? (
-            <p className="mt-1 max-w-full truncate text-center text-[11px] text-choco-300">
-              {url}
+          {/* Quote synced to step */}
+          <div className="mt-5 w-full rounded-2xl bg-choco-800/60 p-4 ring-1 ring-choco-700">
+            <p className="text-[12px] leading-relaxed text-cream-100">
+              “{current.quote.text}”
             </p>
-          ) : null}
-
-          <div className="mt-4 w-full rounded-2xl bg-choco-800/60 p-4 ring-1 ring-choco-700">
-            <p className="text-[12px] leading-relaxed text-cream-100">“{q.quote}”</p>
-            <p className="mt-2 text-[11px] text-choco-300">— {q.by}</p>
+            <p className="mt-2 text-[11px] text-choco-300">
+              — {current.quote.by}
+            </p>
           </div>
 
-          <p className="mt-3 text-center text-[11px] text-choco-300">
-            This takes a few seconds. Ari is collecting the signals that matter.
+          <p className="mt-3 text-[11px] text-choco-300">
+            Calm analysis. No rushing. Clarity takes discipline.
           </p>
         </div>
       </div>
     </div>
   );
 }
+
+
 
 
 
@@ -302,7 +354,7 @@ export default function ScanPage() {
               >
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
-                    Analyzing <span className="opacity-90">•</span> <LoadingDots />
+                    Analyzing <span className="opacity-90">•</span>
                   </span>
                 ) : (
                   "Analyze"
