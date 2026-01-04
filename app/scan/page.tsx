@@ -1,8 +1,17 @@
+// src/app/scan/page.tsx
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Navbar, SiteFooter, Button, usePreorder, useAuth, AuthModal } from "@ariclear/components";
+import {
+  Navbar,
+  SiteFooter,
+  Button,
+  usePreorder,
+  useAuth,
+  AuthModal,
+} from "@ariclear/components";
 
 type AnalyzeResponse = {
   human?: {
@@ -64,8 +73,125 @@ function Pill({ value }: { value: "high" | "medium" | "low" }) {
       ? "bg-cream-100 text-choco-900 ring-1 ring-choco-200"
       : "bg-white text-choco-700 ring-1 ring-choco-200";
 
-  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${cls}`}>{value}</span>;
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${cls}`}>
+      {value}
+    </span>
+  );
 }
+
+/** Small animated dots: “Analyzing…” */
+function LoadingDots() {
+  return (
+    <span className="inline-flex items-end gap-1">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cream-50 [animation-delay:-0.2s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cream-50 [animation-delay:-0.1s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cream-50" />
+    </span>
+  );
+}
+
+/** Fullscreen Ari overlay shown during analysis */
+function AriAnalyzingOverlay({ url }: { url: string }) {
+  const statuses = useMemo(
+    () => [
+      "Sniffing your hero message",
+      "Checking what humans understand in 10 seconds",
+      "Reading headings like an AI indexer",
+      "Looking for missing keywords & context",
+      "Building your action plan",
+    ],
+    [],
+  );
+
+  const quotes = useMemo(
+    () => [
+      {
+        quote:
+          "If you set your heart right each morning and evening, you can live as though your body were already dead.",
+        by: "Hagakure (paraphrase)",
+      },
+      {
+        quote: "Victory belongs to the one who prepares — calmly and completely.",
+        by: "Samurai principle",
+      },
+      {
+        quote: "Clarity is discipline: say the truth in fewer words.",
+        by: "AriClear mantra",
+      },
+    ],
+    [],
+  );
+
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      setI((v) => v + 1);
+    }, 1400);
+
+    return () => window.clearInterval(t);
+  }, []);
+
+  const status = statuses[i % statuses.length];
+  const q = quotes[i % quotes.length];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-choco-900/70 backdrop-blur-sm"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="mx-4 w-full max-w-md rounded-3xl bg-choco-900 p-6 shadow-2xl ring-1 ring-choco-700">
+        <div className="relative mx-auto flex w-full flex-col items-center">
+          {/* Center “sniffing” animation */}
+          <div className="relative flex h-28 w-28 items-center justify-center">
+            <div className="absolute inset-0 rounded-full border border-choco-600/70" />
+            <div className="absolute inset-[-10px] rounded-full border border-choco-700/40" />
+            <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-choco-400/80 [animation-duration:1.2s]" />
+            <div className="absolute inset-2 animate-pulse rounded-full bg-choco-800/40" />
+
+            <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-choco-800 shadow-soft">
+              <Image
+                src="/branding/arilogo-optimized.png"
+                alt="AriClear"
+                fill
+                className="object-contain p-2"
+                priority
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 rounded-full bg-choco-800 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-choco-200">
+            Ari is sniffing <LoadingDots />
+          </div>
+
+          <p className="mt-3 text-center text-sm font-medium text-cream-50">
+            {status}
+          </p>
+
+          {/* ✅ Use the url */}
+          {url ? (
+            <p className="mt-1 max-w-full truncate text-center text-[11px] text-choco-300">
+              {url}
+            </p>
+          ) : null}
+
+          <div className="mt-4 w-full rounded-2xl bg-choco-800/60 p-4 ring-1 ring-choco-700">
+            <p className="text-[12px] leading-relaxed text-cream-100">“{q.quote}”</p>
+            <p className="mt-2 text-[11px] text-choco-300">— {q.by}</p>
+          </div>
+
+          <p className="mt-3 text-center text-[11px] text-choco-300">
+            This takes a few seconds. Ari is collecting the signals that matter.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 export default function ScanPage() {
   const router = useRouter();
@@ -131,6 +257,11 @@ export default function ScanPage() {
       <Navbar />
       <AuthModal open={authOpen} onClose={closeAuth} initialMode="login" />
 
+      {/* Ari analyzing overlay */}
+      {loading ? <AriAnalyzingOverlay url={cleanedUrl} /> : null}
+
+
+
       <main className="flex-1 bg-cream-50">
         <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
           <h1 className="text-3xl font-semibold text-choco-900">AriClear Demo</h1>
@@ -156,7 +287,8 @@ export default function ScanPage() {
                 onChange={(e) => setTargetUrl(e.target.value)}
                 placeholder="https://example.com"
                 inputMode="url"
-                className="w-full rounded-full border border-choco-200 bg-cream-50 px-4 py-2 text-sm text-choco-900 placeholder:text-choco-400 focus:border-choco-500 focus:outline-none focus:ring-1 focus:ring-choco-500"
+                disabled={loading}
+                className="w-full rounded-full border border-choco-200 bg-cream-50 px-4 py-2 text-sm text-choco-900 placeholder:text-choco-400 focus:border-choco-500 focus:outline-none focus:ring-1 focus:ring-choco-500 disabled:opacity-60"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") onAnalyze();
                 }}
@@ -165,10 +297,16 @@ export default function ScanPage() {
               <Button
                 type="button"
                 className="shrink-0 sm:px-6"
-                disabled={!canAnalyze || !user || authLoading}
+                disabled={!canAnalyze || !user || authLoading || loading}
                 onClick={onAnalyze}
               >
-                {loading ? "Analyzing..." : "Analyze"}
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    Analyzing <span className="opacity-90">•</span> <LoadingDots />
+                  </span>
+                ) : (
+                  "Analyze"
+                )}
               </Button>
             </div>
 
@@ -208,7 +346,8 @@ export default function ScanPage() {
                           {result.human?.oneSentenceValueProp ?? ""}
                         </p>
                         <p className="mt-1 text-[11px] text-choco-600">
-                          Best-guess audience: <span className="font-medium">{result.human?.bestGuessAudience ?? ""}</span>
+                          Best-guess audience:{" "}
+                          <span className="font-medium">{result.human?.bestGuessAudience ?? ""}</span>
                         </p>
                       </div>
 
@@ -252,7 +391,10 @@ export default function ScanPage() {
 
                     <div className="mt-4 space-y-3">
                       {(result.human?.topIssues ?? []).map((item, idx) => (
-                        <div key={`${item.issue}-${idx}`} className="rounded-xl bg-cream-50 p-4 ring-1 ring-choco-100">
+                        <div
+                          key={`${item.issue}-${idx}`}
+                          className="rounded-xl bg-cream-50 p-4 ring-1 ring-choco-100"
+                        >
                           <p className="text-sm font-semibold text-choco-900">
                             {idx + 1}. {item.issue}
                           </p>
@@ -300,7 +442,10 @@ export default function ScanPage() {
 
                     <div className="mt-4 space-y-3">
                       {(result.plan?.nextSteps ?? []).map((s, idx) => (
-                        <div key={`${s.title}-${idx}`} className="rounded-xl bg-cream-50 p-4 ring-1 ring-choco-100">
+                        <div
+                          key={`${s.title}-${idx}`}
+                          className="rounded-xl bg-cream-50 p-4 ring-1 ring-choco-100"
+                        >
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-sm font-semibold text-choco-900">
                               {idx + 1}. {s.title}
@@ -369,3 +514,4 @@ export default function ScanPage() {
     </div>
   );
 }
+
