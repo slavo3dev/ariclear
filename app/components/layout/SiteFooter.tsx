@@ -18,12 +18,12 @@ export function SiteFooter() {
           </a>
           {" • "}
           <a
-            href="https://www.mimiandari.com"
+            href="https://www.slavo.io"
             target="_blank"
             rel="noreferrer"
             className="font-medium text-choco-800 underline-offset-2 hover:underline"
           >
-            Mimi &amp; Ari
+            slavo.io
           </a>
         </p>
 
