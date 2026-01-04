@@ -46,15 +46,24 @@ function isReportShape(obj: any) {
     obj.human &&
     typeof obj.human.clarityScore === "number" &&
     typeof obj.human.whatItSeemsLike === "string" &&
+    typeof obj.human.oneSentenceValueProp === "string" &&
+    typeof obj.human.bestGuessAudience === "string" &&
     Array.isArray(obj.human.confusions) &&
+    Array.isArray(obj.human.topIssues) &&
     obj.ai &&
     typeof obj.ai.aiSeoScore === "number" &&
     typeof obj.ai.aiSummary === "string" &&
+    typeof obj.ai.indexerRead === "string" &&
     Array.isArray(obj.ai.missingKeywords) &&
+    Array.isArray(obj.ai.structuredDataSuggestions) &&
     obj.copy &&
     typeof obj.copy.suggestedHeadline === "string" &&
     typeof obj.copy.suggestedSubheadline === "string" &&
-    typeof obj.copy.suggestedCTA === "string"
+    typeof obj.copy.suggestedCTA === "string" &&
+    obj.plan &&
+    Array.isArray(obj.plan.nextSteps) &&
+    obj.prompts &&
+    typeof obj.prompts.aiSeoPrompt === "string"
   );
 }
 
@@ -89,36 +98,62 @@ export async function POST(req: Request) {
     const extracted = extractTextFromHtml(html);
 
     const instructions = `
-      You are AriClear, a website clarity + AI SEO comprehension auditor.
-      
-      Analyze the provided page content.
+You are AriClear, a website clarity + AI-SEO comprehension auditor.
 
-      Return ONLY a valid JSON object with this EXACT shape (no extra keys, no markdown):
+Analyze the provided page content as if:
+1) A first-time human visitor has ~10 seconds.
+2) An AI indexer/LLM is trying to classify and understand the business.
 
+Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown):
+
+{
+  "human": {
+    "clarityScore": number (0-100),
+    "whatItSeemsLike": string,
+    "oneSentenceValueProp": string,
+    "bestGuessAudience": string,
+    "confusions": string[] (3-6 items),
+    "topIssues": [
+      { "issue": string, "whyItHurts": string, "fix": string }
+    ] (3-6 items)
+  },
+  "ai": {
+    "aiSeoScore": number (0-100),
+    "aiSummary": string,
+    "indexerRead": string,
+    "missingKeywords": string[] (5-10 items),
+    "structuredDataSuggestions": string[] (2-5 items)
+  },
+  "copy": {
+    "suggestedHeadline": string,
+    "suggestedSubheadline": string,
+    "suggestedCTA": string
+  },
+  "plan": {
+    "nextSteps": [
       {
-        "human": {
-          "clarityScore": number (0-100),
-          "whatItSeemsLike": string,
-          "confusions": string[] (3-6 items)
-        },
-        "ai": {
-          "aiSeoScore": number (0-100),
-          "aiSummary": string,
-          "missingKeywords": string[] (5-10 items)
-        },
-        "copy": {
-          "suggestedHeadline": string,
-          "suggestedSubheadline": string,
-          "suggestedCTA": string
-        }
+        "title": string,
+        "impact": "high"|"medium"|"low",
+        "effort": "low"|"medium"|"high",
+        "details": string
       }
+    ] (3-7 items)
+  },
+  "prompts": {
+    "aiSeoPrompt": string
+  }
+}
 
-      Guidelines:
-      - "human.clarityScore": based on whether a first-time visitor understands what the site does in ~10 seconds.
-      - "ai.aiSeoScore": based on whether an AI model can classify the site and extract keywords cleanly.
-      - Keep suggestions specific and actionable, not generic.
-      - Make the suggested headline/subheadline/CTA match what the site actually offers.
-      `.trim();
+Rules:
+- Be specific to the extracted content (do NOT be generic).
+- Clarity score: does it clearly state what it is, who it is for, and what to do next quickly?
+- AI score: can an AI classify the business and extract key topics without guessing?
+- topIssues: prioritize issues that block understanding in the hero/above-the-fold first.
+- structuredDataSuggestions: include quick wins like title/meta clarity, headings structure, OG tags, schema.org.
+- nextSteps must be actionable: what to change and where.
+- aiSeoPrompt: write a single copy/paste prompt the user can use to rewrite their hero + meta description + headings in a clear, AI-readable way.
+`.trim();
+
 
     // ✅ Chat Completions + JSON mode (works with openai@6.14.0)
     const completion = await client.chat.completions.create({
