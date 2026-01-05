@@ -1,28 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 import { Button } from "@ariclear/components";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  /**
-   * Ensure we are in recovery mode
-   */
+  // 🔑 Exchange recovery code for session
   useEffect(() => {
-    supabaseAriClear.auth.getSession().then(({ data }) => {
-      if (!data.session) {
-        setError("Invalid or expired recovery link.");
-      }
-    });
-  }, []);
+    const code = searchParams.get("code");
+    if (!code) {
+      setError("Invalid or expired recovery link.");
+      return;
+    }
+
+    supabaseAriClear.auth
+      .exchangeCodeForSession(code)
+      .then(({ error }) => {
+        if (error) {
+          setError(error.message);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [searchParams]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

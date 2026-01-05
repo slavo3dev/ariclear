@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@ariclear/components";
-import { usePreorder, useAuth, AuthModal} from "@ariclear/components";
+import { usePreorder, useAuth, AuthModal } from "@ariclear/components";
 import { useRouter } from "next/navigation";
 
 export function Navbar() {
@@ -81,18 +81,25 @@ export function Navbar() {
 
           {/* Desktop */}
           <nav className="hidden items-center gap-4 text-sm text-choco-700 md:flex">
-            <a href="#how-it-works" className="hover:text-choco-900">
+            <Link href="/#how-it-works" className="hover:text-choco-900">
               How it works
-            </a>
-            <a href="#who-its-for" className="hover:text-choco-900">
+            </Link>
+            <Link href="/#who-its-for" className="hover:text-choco-900">
               Who it&apos;s for
-            </a>
+            </Link>
 
-            <a href="/scan" onClick={handleTryDemo} className="hover:text-choco-900">
+            <a
+              onClick={handleTryDemo}
+              className="hover:text-choco-900 cursor-pointer"
+            >
               Try demo
             </a>
 
-            <Button className="px-4 py-1.5 text-xs" type="button" onClick={handleEarlyAccess}>
+            <Button
+              className="px-4 py-1.5 text-xs"
+              type="button"
+              onClick={handleEarlyAccess}
+            >
               Get early access
             </Button>
 
@@ -123,7 +130,9 @@ export function Navbar() {
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
           >
-            <span className="text-lg leading-none">{mobileOpen ? "✕" : "☰"}</span>
+            <span className="text-lg leading-none">
+              {mobileOpen ? "✕" : "☰"}
+            </span>
           </button>
         </div>
 
@@ -132,30 +141,53 @@ export function Navbar() {
           <div className="border-t border-choco-100 bg-cream-50/95 backdrop-blur-sm md:hidden">
             <nav className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
               <div className="flex flex-col gap-2 text-sm text-choco-800">
-                <a href="#how-it-works" onClick={closeMobile} className="rounded-xl px-3 py-2 hover:bg-white/70">
+                <Link
+                  href="/#how-it-works"
+                  onClick={closeMobile}
+                  className="rounded-xl px-3 py-2 hover:bg-white/70"
+                >
                   How it works
-                </a>
-                <a href="#who-its-for" onClick={closeMobile} className="rounded-xl px-3 py-2 hover:bg-white/70">
+                </Link>
+                <Link
+                  href="/#who-its-for"
+                  onClick={closeMobile}
+                  className="rounded-xl px-3 py-2 hover:bg-white/70"
+                >
                   Who it&apos;s for
-                </a>
+                </Link>
 
-                <a href="/scan" onClick={handleTryDemo} className="rounded-xl px-3 py-2 hover:bg-white/70">
+                <a
+                  onClick={handleTryDemo}
+                  className="rounded-xl px-3 py-2 hover:bg-white/70 cursor-pointer"
+                >
                   Try demo
                 </a>
 
                 <div className="pt-2">
-                  <Button type="button" className="w-full justify-center" onClick={handleEarlyAccess}>
+                  <Button
+                    type="button"
+                    className="w-full justify-center"
+                    onClick={handleEarlyAccess}
+                  >
                     Get early access
                   </Button>
                 </div>
 
                 <div className="pt-2">
                   {user ? (
-                    <Button type="button" className="w-full justify-center" onClick={handleLogout}>
+                    <Button
+                      type="button"
+                      className="w-full justify-center"
+                      onClick={handleLogout}
+                    >
                       Logout
                     </Button>
                   ) : (
-                    <Button type="button" className="w-full justify-center" onClick={handleLogin}>
+                    <Button
+                      type="button"
+                      className="w-full justify-center"
+                      onClick={handleLogin}
+                    >
                       Login / Sign up
                     </Button>
                   )}
@@ -166,7 +198,11 @@ export function Navbar() {
         )}
       </header>
 
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} initialMode="login" />
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        initialMode="login"
+      />
     </>
   );
 }
