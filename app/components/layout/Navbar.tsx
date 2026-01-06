@@ -88,12 +88,13 @@ export function Navbar() {
               Who it&apos;s for
             </Link>
 
-            <a
+            <button
+              type="button"
               onClick={handleTryDemo}
               className="hover:text-choco-900 cursor-pointer"
             >
               Try demo
-            </a>
+            </button>
 
             <Button
               className="px-4 py-1.5 text-xs"
@@ -156,12 +157,13 @@ export function Navbar() {
                   Who it&apos;s for
                 </Link>
 
-                <a
+                <button
+                  type="button"
                   onClick={handleTryDemo}
                   className="rounded-xl px-3 py-2 hover:bg-white/70 cursor-pointer"
                 >
                   Try demo
-                </a>
+                </button>
 
                 <div className="pt-2">
                   <Button
