@@ -30,6 +30,7 @@ export default function VerifyEmailPage() {
         if (error) {
           setError("Invalid or expired verification link.");
         } else {
+          await supabaseAriClear.auth.signOut();
           setSuccess("Email verified successfully.");
         }
       } finally {

@@ -10,7 +10,8 @@ export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
 
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -19,6 +20,7 @@ export default function ResetPasswordPage() {
     const code = searchParams.get("code");
     if (!code) {
       setError("Invalid or expired recovery link.");
+      setLoading(false);
       return;
     }
 
@@ -27,6 +29,8 @@ export default function ResetPasswordPage() {
       .then(({ error }) => {
         if (error) {
           setError(error.message);
+        } else {
+          setReady(true);
         }
       })
       .finally(() => setLoading(false));
@@ -34,6 +38,8 @@ export default function ResetPasswordPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!ready) return;
+
     setError(null);
     setSuccess(null);
     setLoading(true);
@@ -58,6 +64,22 @@ export default function ResetPasswordPage() {
       setLoading(false);
     }
   };
+
+  if (loading && !ready) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center text-choco-200">
+        Verifying recovery link…
+      </div>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center text-red-400">
+        ⚠️ {error}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
