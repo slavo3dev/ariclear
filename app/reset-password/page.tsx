@@ -1,45 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 import { Button } from "@ariclear/components";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // 🔑 Exchange recovery code for session
+  /**
+   * Ensure we are in recovery mode
+   */
   useEffect(() => {
-    const code = searchParams.get("code");
-    if (!code) {
-      setError("Invalid or expired recovery link.");
-      setLoading(false);
-      return;
-    }
-
-    supabaseAriClear.auth
-      .exchangeCodeForSession(code)
-      .then(({ error }) => {
-        if (error) {
-          setError(error.message);
-        } else {
-          setReady(true);
-        }
-      })
-      .finally(() => setLoading(false));
-  }, [searchParams]);
+    supabaseAriClear.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        setError("Invalid or expired recovery link.");
+      }
+    });
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ready) return;
-
     setError(null);
     setSuccess(null);
     setLoading(true);
@@ -64,22 +50,6 @@ export default function ResetPasswordPage() {
       setLoading(false);
     }
   };
-
-  if (loading && !ready) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center text-choco-200">
-        Verifying recovery link…
-      </div>
-    );
-  }
-
-  if (!ready) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center text-red-400">
-        ⚠️ {error}
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

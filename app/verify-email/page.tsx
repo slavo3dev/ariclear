@@ -1,45 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 import { Button } from "@ariclear/components";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  /**
+   * Check if the verification link produced a valid session
+   */
   useEffect(() => {
-    const code = searchParams.get("code");
-
-    if (!code) {
-      setError("Invalid or expired verification link.");
-      setLoading(false);
-      return;
-    }
-
-    const verifyEmail = async () => {
-      try {
-        const { error } = await supabaseAriClear.auth.exchangeCodeForSession(
-          code
-        );
-        if (error) {
-          setError("Invalid or expired verification link.");
-        } else {
-          await supabaseAriClear.auth.signOut();
-          setSuccess("Email verified successfully.");
-        }
-      } finally {
-        setLoading(false);
+    supabaseAriClear.auth.getSession().then(({ data, error }) => {
+      if (error || !data.session) {
+        setError("Invalid or expired verification link.");
+      } else {
+        setSuccess("Your email has been verified successfully.");
       }
-    };
-
-    verifyEmail();
-  }, [searchParams]);
+      setLoading(false);
+    });
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
