@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   const supabase = await supabaseAriClearServer();
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/confirm?next=/reset-password`,
   });
 
   if (error) {

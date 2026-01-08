@@ -17,11 +17,21 @@ export default function ResetPasswordPage() {
    * Ensure we are in recovery mode
    */
   useEffect(() => {
-    supabaseAriClear.auth.getSession().then(({ data }) => {
+    const checkSession = async () => {
+      const { data } = await supabaseAriClear.auth.getSession();
+
       if (!data.session) {
-        setError("Invalid or expired recovery link.");
+        // Give Supabase a moment to hydrate cookies
+        setTimeout(async () => {
+          const { data } = await supabaseAriClear.auth.getSession();
+          if (!data.session) {
+            setError("Invalid or expired recovery link.");
+          }
+        }, 300);
       }
-    });
+    };
+
+    checkSession();
   }, []);
 
   const submit = async (e: React.FormEvent) => {
