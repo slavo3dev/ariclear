@@ -1,25 +1,16 @@
 import { redirect } from "next/navigation";
-import { supabaseAriClearServer } from "@ariclear/lib/supabase/auth/server";
 
-type Props = {
-  searchParams: { code?: string; next?: string };
-};
+export default async function ConfirmPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string; next?: string }>;
+}) {
+  const params = await searchParams;
 
-export default async function ConfirmPage({ searchParams }: Props) {
-  const code = searchParams.code; // ✅ just access directly
-  const next = searchParams.next ?? "/"; // ✅ fallback
+  const qs = new URLSearchParams({
+    code: params.code ?? "",
+    next: params.next ?? "/",
+  });
 
-  if (!code) {
-    redirect("/error?reason=missing_code");
-  }
-
-  const supabase = await supabaseAriClearServer();
-
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-  if (error) {
-    redirect("/error?reason=expired");
-  }
-
-  redirect(next);
+  redirect(`/api/auth/confirm?${qs.toString()}`);
 }
