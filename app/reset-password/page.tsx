@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 import { Button } from "@ariclear/components";
+import { api } from "@ariclear/lib/api/axios";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -13,17 +14,6 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  /**
-   * Ensure we are in recovery mode
-   */
-  useEffect(() => {
-    supabaseAriClear.auth.getSession().then(({ data }) => {
-      if (!data.session) {
-        setError("Invalid or expired recovery link.");
-      }
-    });
-  }, []);
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -31,7 +21,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const { error } = await supabaseAriClear.auth.updateUser({
+      await api.post("/auth/update-password", {
         password,
       });
 
