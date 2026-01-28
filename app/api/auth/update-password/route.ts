@@ -2,20 +2,16 @@ import { NextResponse } from "next/server";
 import { supabaseAriClearServer } from "@ariclear/lib/supabase/auth/server";
 
 export async function POST(req: Request) {
-  const { email } = await req.json();
-
+  const { password } = await req.json();
   const supabase = await supabaseAriClearServer();
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/confirm?next=/reset-password`,
+  const { error } = await supabase.auth.updateUser({
+    password,
   });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({
-    success: true,
-    message: "Password reset email sent.",
-  });
+  return NextResponse.json({ success: true });
 }
