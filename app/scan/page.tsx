@@ -1,9 +1,9 @@
-// src/app/scan/page.tsx
 "use client";
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import {
   Navbar,
   SiteFooter,
@@ -252,8 +252,30 @@ export default function ScanPage() {
 
       const json = (await res.json()) as AnalyzeResponse;
 
-      if (!res.ok) setResult({ error: json?.error || "Analysis failed" });
-      else setResult(json);
+      if (!res.ok) {
+        setResult({ error: json?.error || "Analysis failed" });
+      } else {
+        setResult(json);
+        
+        // Save to database via API
+        try {
+          const saveRes = await fetch('/api/scans', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              analyzeResult: json,
+              url: cleanedUrl,
+            }),
+          });
+
+          if (saveRes.ok) {
+            toast.success('Scan saved to history!');
+          }
+        } catch (saveError) {
+          console.error('Error saving scan:', saveError);
+          // Don't show error to user - scan still worked
+        }
+      }
     } catch {
       setResult({ error: "Network error. Please try again." });
     } finally {
@@ -264,8 +286,9 @@ export default function ScanPage() {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      toast.success('Copied to clipboard!');
     } catch {
-      // ignore
+      toast.error('Failed to copy');
     }
   };
 
