@@ -1,9 +1,9 @@
-// src/app/scan/page.tsx
 "use client";
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import {
   Navbar,
   SiteFooter,
@@ -238,34 +238,71 @@ export default function ScanPage() {
   };
 
   const onAnalyze = async () => {
-    if (!canAnalyze) return;
+  if (!canAnalyze) return;
 
-    setLoading(true);
-    setResult(null);
+  setLoading(true);
+  setResult(null);
 
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: cleanedUrl }),
-      });
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: cleanedUrl }),
+    });
 
-      const json = (await res.json()) as AnalyzeResponse;
+    const json = (await res.json()) as AnalyzeResponse;
 
-      if (!res.ok) setResult({ error: json?.error || "Analysis failed" });
-      else setResult(json);
-    } catch {
-      setResult({ error: "Network error. Please try again." });
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      // Handle rate limit specifically
+      if (res.status === 429) {
+        toast.error('Rate limit reached. Please wait 60 seconds and try again.');
+        setResult({ error: json?.error || "Rate limit reached. Please wait a moment." });
+        return;
+      }
+      
+      setResult({ error: json?.error || "Analysis failed" });
+      toast.error(json?.error || "Analysis failed");
+    } else {
+      setResult(json);
+      
+      // Save to database via API
+      try {
+        const saveRes = await fetch('/api/scans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            analyzeResult: json,
+            url: cleanedUrl,
+          }),
+        });
+
+        if (saveRes.ok) {
+          toast.success('Scan saved to history!');
+        } else if (saveRes.status === 403) {
+          const saveError = await saveRes.json();
+          if (saveError.requiresUpgrade) {
+            toast.error(saveError.message);
+          }
+        }
+      } catch (saveError) {
+        console.error('Error saving scan:', saveError);
+        // Don't show error to user - scan still worked
+      }
     }
-  };
+  } catch {
+    setResult({ error: "Network error. Please try again." });
+    toast.error("Network error. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      toast.success('Copied to clipboard!');
     } catch {
-      // ignore
+      toast.error('Failed to copy');
     }
   };
 
@@ -441,9 +478,18 @@ export default function ScanPage() {
             ) : !isValidHttpUrl(cleanedUrl) ? (
               <p className="mt-2 text-[11px] text-red-700">Please enter a valid URL starting with http:// or https://</p>
             ) : (
-              <p className="mt-2 text-[11px] text-choco-500">
-                Demo mode: public pages only. Login walls may not work.
-              </p>
+             <div className="mt-2 space-y-1">
+                <p className="text-[11px] text-choco-500">
+                  Demo mode: public pages only. Login walls may not work.
+                </p>
+                <p className="text-[11px] text-yellow-700 flex items-start gap-1">
+                  <span>⚠️</span>
+                  <span>
+                    Some websites block automated scanning (banks, e-commerce, sites behind Cloudflare). 
+                    Try scanning your own website or smaller business sites.
+                  </span>
+                </p>
+              </div>
             )}
           </div>
 

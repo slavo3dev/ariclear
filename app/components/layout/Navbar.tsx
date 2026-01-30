@@ -3,17 +3,30 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Button } from "@ariclear/components";
 import { usePreorder, useAuth, AuthModal } from "@ariclear/components";
 import { useRouter } from "next/navigation";
+
+type SubscriptionInfo = {
+  tier: string;
+  websites_limit: number;
+  websites_used: number;
+  websites_remaining: number;
+  trial_expires_at: string | null;
+  is_trial_expired: boolean;
+  can_scan: boolean;
+};
 
 export function Navbar() {
   const { open: openPreorderModal } = usePreorder();
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -22,6 +35,47 @@ export function Navbar() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  // Fetch subscription when user logs in
+  useEffect(() => {
+    if (!user) {
+      // Use queueMicrotask to defer state update
+      queueMicrotask(() => setSubscription(null));
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchSubscription = async () => {
+      try {
+        const res = await fetch("/api/subscription");
+        if (!res.ok) {
+          console.error('Failed to fetch subscription:', res.status);
+          return;
+        }
+
+        const data = await res.json();
+
+        // Only update state if component is still mounted
+        if (isMounted) {
+          // Use queueMicrotask to defer state update to avoid synchronous setState
+          queueMicrotask(() => {
+            if (isMounted) {
+              setSubscription(data);
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching subscription:", error);
+      }
+    };
+
+    fetchSubscription();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -47,12 +101,43 @@ export function Navbar() {
   const handleLogout = async () => {
     closeMobile();
     await signOut();
+    setSubscription(null);
     router.push("/");
   };
 
   const handleEarlyAccess = () => {
     closeMobile();
     openPreorderModal();
+  };
+
+  const isActive = (path: string) => {
+    return pathname === path;
+  };
+
+  const getTierBadgeColor = (tier?: string) => {
+    if (!tier) return 'bg-gray-100 text-gray-700 ring-gray-300';
+    
+    switch (tier.toLowerCase()) {
+      case 'free':
+        return 'bg-gray-100 text-gray-700 ring-gray-300';
+      case 'trial':
+        return 'bg-blue-100 text-blue-700 ring-blue-300';
+      case 'starter':
+        return 'bg-green-100 text-green-700 ring-green-300';
+      case 'pro':
+        return 'bg-purple-100 text-purple-700 ring-purple-300';
+      case 'business':
+        return 'bg-orange-100 text-orange-700 ring-orange-300';
+      case 'agency':
+        return 'bg-red-100 text-red-700 ring-red-300';
+      default:
+        return 'bg-gray-100 text-gray-700 ring-gray-300';
+    }
+  };
+
+  const getTierLabel = (tier?: string) => {
+    if (!tier) return 'Free';
+    return tier.charAt(0).toUpperCase() + tier.slice(1);
   };
 
   return (
@@ -81,42 +166,90 @@ export function Navbar() {
 
           {/* Desktop */}
           <nav className="hidden items-center gap-4 text-sm text-choco-700 md:flex">
-            <Link href="/#how-it-works" className="hover:text-choco-900">
+            <Link 
+              href="/#how-it-works" 
+              className="hover:text-choco-900 transition"
+            >
               How it works
             </Link>
-            <Link href="/#who-its-for" className="hover:text-choco-900">
+            <Link 
+              href="/#who-its-for" 
+              className="hover:text-choco-900 transition"
+            >
               Who it&apos;s for
             </Link>
 
-            <button
-              type="button"
-              onClick={handleTryDemo}
-              className="hover:text-choco-900 cursor-pointer"
-            >
-              Try demo
-            </button>
+            {/* Show these links only for authenticated users */}
+            {user && (
+              <>
+                <Link
+                  href="/scan"
+                  className={`hover:text-choco-900 transition ${
+                    isActive('/scan') ? 'font-semibold text-choco-900' : ''
+                  }`}
+                >
+                  Scan
+                </Link>
+                <Link
+                  href="/history"
+                  className={`hover:text-choco-900 transition ${
+                    isActive('/history') ? 'font-semibold text-choco-900' : ''
+                  }`}
+                >
+                  History
+                </Link>
+              </>
+            )}
+
+            {/* Show Try Demo only for non-authenticated users */}
+            {!user && (
+              <button
+                type="button"
+                onClick={handleTryDemo}
+                className="hover:text-choco-900 cursor-pointer transition"
+              >
+                Try demo
+              </button>
+            )}
 
             <Button
               className="px-4 py-1.5 text-xs"
               type="button"
               onClick={handleEarlyAccess}
             >
-              Get early access
+              Request Trial
             </Button>
 
             {user ? (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-xs text-choco-700 hover:text-choco-900"
-              >
-                Logout
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Subscription Info */}
+                {subscription && (
+                  <div className="flex items-center gap-2 border-l border-choco-200 pl-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
+                      {getTierLabel(subscription.tier)}
+                    </span>
+                    <span className="text-xs text-choco-600">
+                      {subscription.websites_used}/{subscription.websites_limit} sites
+                    </span>
+                  </div>
+                )}
+                
+                <div className="text-xs text-choco-600 border-l border-choco-200 pl-3 max-w-37.5 truncate">
+                  {user.email}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="text-xs text-choco-700 hover:text-choco-900 transition"
+                >
+                  Logout
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
                 onClick={handleLogin}
-                className="text-xs text-choco-700 hover:text-choco-900"
+                className="text-xs text-choco-700 hover:text-choco-900 transition"
               >
                 Login
               </button>
@@ -145,25 +278,49 @@ export function Navbar() {
                 <Link
                   href="/#how-it-works"
                   onClick={closeMobile}
-                  className="rounded-xl px-3 py-2 hover:bg-white/70"
+                  className="rounded-xl px-3 py-2 hover:bg-white/70 transition"
                 >
                   How it works
                 </Link>
                 <Link
                   href="/#who-its-for"
                   onClick={closeMobile}
-                  className="rounded-xl px-3 py-2 hover:bg-white/70"
+                  className="rounded-xl px-3 py-2 hover:bg-white/70 transition"
                 >
                   Who it&apos;s for
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={handleTryDemo}
-                  className="rounded-xl px-3 py-2 hover:bg-white/70 cursor-pointer"
-                >
-                  Try demo
-                </button>
+                {/* Show these links only for authenticated users */}
+                {user ? (
+                  <>
+                    <Link
+                      href="/scan"
+                      onClick={closeMobile}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
+                        isActive('/scan') ? 'bg-white/70 font-semibold' : ''
+                      }`}
+                    >
+                      🔍 Scan Website
+                    </Link>
+                    <Link
+                      href="/history"
+                      onClick={closeMobile}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
+                        isActive('/history') ? 'bg-white/70 font-semibold' : ''
+                      }`}
+                    >
+                      📊 History
+                    </Link>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleTryDemo}
+                    className="rounded-xl px-3 py-2 hover:bg-white/70 cursor-pointer transition text-left"
+                  >
+                    Try demo
+                  </button>
+                )}
 
                 <div className="pt-2">
                   <Button
@@ -171,19 +328,44 @@ export function Navbar() {
                     className="w-full justify-center"
                     onClick={handleEarlyAccess}
                   >
-                    Get early access
+                    Request Trial
                   </Button>
                 </div>
 
+                {/* User info with subscription */}
+                {user && (
+                  <div className="pt-2 px-3 py-3 bg-white/50 rounded-xl space-y-2">
+                    <p className="text-xs text-choco-600">
+                      Signed in as
+                    </p>
+                    <p className="text-xs font-medium text-choco-900 truncate">
+                      {user.email}
+                    </p>
+                    
+                    {subscription && (
+                      <div className="flex items-center justify-between pt-2 border-t border-choco-200">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
+                            {getTierLabel(subscription.tier)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-choco-600">
+                          {subscription.websites_used}/{subscription.websites_limit} websites
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="pt-2">
                   {user ? (
-                    <Button
+                    <button
                       type="button"
-                      className="w-full justify-center"
+                      className="w-full rounded-full bg-white px-4 py-2 text-sm font-medium text-choco-900 ring-1 ring-choco-200 transition hover:bg-cream-50"
                       onClick={handleLogout}
                     >
                       Logout
-                    </Button>
+                    </button>
                   ) : (
                     <Button
                       type="button"
