@@ -47,57 +47,87 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState<'all' | 'recent' | 'low-score'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'score'>('date');
 
+  // Auth check - redirect if not logged in
   useEffect(() => {
-  if (authLoading) return;
-  if (!user) {
-    router.push('/');
-    return;
-  }
-  fetchScans();
-  fetchStats();
-   
-}, [authLoading, user]);
+    if (authLoading) return;
+    if (!user) {
+      router.push('/');
+      return;
+    }
+  }, [authLoading, user, router]);
 
-useEffect(() => {
-  if (user) {
+  // Initial load - fetch both scans and stats
+  useEffect(() => {
+    if (!user || authLoading) return;
+    
+    const loadData = async () => {
+      await Promise.all([
+        fetchScans(),
+        fetchStats()
+      ]);
+    };
+    
+    loadData();
+  }, [user, authLoading]);
+
+  // Refetch scans when filter or sort changes
+  useEffect(() => {
+    if (!user || authLoading) return;
     fetchScans();
-  }
-   
-}, [filter, sortBy]);;
+  }, [filter, sortBy]);
 
   const fetchScans = async () => {
-    try {
-      setLoading(true);
-      
-      const params = new URLSearchParams();
-      if (filter !== 'all') params.set('filter', filter);
-      params.set('sortBy', sortBy);
-      
-      const res = await fetch(`/api/scans?${params.toString()}`);
-      
-      if (!res.ok) {
-        throw new Error('Failed to fetch scans');
-      }
-      
-      const data = await res.json();
-      setScans(data.scans || []);
-    } catch (error) {
-      console.error('Error fetching scans:', error);
-      toast.error('Failed to load scans');
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    
+    const params = new URLSearchParams();
+    if (filter !== 'all') params.set('filter', filter);
+    params.set('sortBy', sortBy);
+    
+    console.log('🔍 Fetching scans with params:', params.toString());
+    
+    const res = await fetch(`/api/scans?${params.toString()}`);
+    
+    console.log('📡 Response status:', res.status);
+    
+    if (!res.ok) {
+      throw new Error('Failed to fetch scans');
     }
-  };
+    
+    const data = await res.json();
+    
+    console.log('✅ Raw response:', data); // Log entire response
+    console.log('✅ Scans received:', data.scans?.length);
+    console.log('📦 Full scan data:', data.scans);
+    console.log('📦 Data keys:', Object.keys(data)); // See what keys exist
+    
+    // Handle both possible response formats
+    const scanData = data.scans || data || [];
+    console.log('🎯 Final scan data:', scanData);
+    
+    setScans(Array.isArray(scanData) ? scanData : []);
+  } catch (error) {
+    console.error('❌ Error fetching scans:', error);
+    toast.error('Failed to load scans');
+    setScans([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchStats = async () => {
     try {
+      console.log('📊 Fetching stats...');
+      
       const res = await fetch('/api/scans/stats');
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('📊 Stats received:', data.stats);
         setStats(data.stats);
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('❌ Error fetching stats:', error);
     }
   };
 
@@ -136,7 +166,8 @@ useEffect(() => {
     return 'F';
   };
 
-  if (authLoading || loading) {
+  // Show loading only on initial load
+  if (authLoading) {
     return (
       <div className="flex min-h-screen flex-col">
         <Navbar />
@@ -152,7 +183,7 @@ useEffect(() => {
                 className="object-contain p-2"
               />
             </div>
-            <p className="text-sm text-choco-700">Loading your scan history...</p>
+            <p className="text-sm text-choco-700">Loading...</p>
           </div>
         </main>
         <SiteFooter />
@@ -263,8 +294,24 @@ useEffect(() => {
             </div>
           </div>
 
+          {/* Loading State */}
+          {loading && (
+            <div className="text-center py-12">
+              <div className="relative h-12 w-12 mx-auto mb-4 overflow-hidden rounded-xl bg-choco-800 shadow-soft animate-pulse">
+                <Image
+                  src="/branding/arilogo-optimized.png"
+                  alt="Loading"
+                  fill
+                  sizes="48px"
+                  className="object-contain p-2"
+                />
+              </div>
+              <p className="text-sm text-choco-700">Loading scans...</p>
+            </div>
+          )}
+
           {/* Scans List */}
-          {scans.length === 0 ? (
+          {!loading && scans.length === 0 ? (
             <div className="rounded-2xl border border-choco-100 bg-white p-12 text-center shadow-soft">
               <div className="text-5xl mb-4">🔍</div>
               <h3 className="text-xl font-semibold text-choco-900 mb-2">
@@ -282,7 +329,7 @@ useEffect(() => {
                 Scan a Website
               </Link>
             </div>
-          ) : (
+          ) : !loading && scans.length > 0 ? (
             <div className="space-y-4">
               {scans.map((scan) => (
                 <div
@@ -295,8 +342,8 @@ useEffect(() => {
                       <div className="mb-3">
                         <h3 className="text-lg font-semibold text-choco-900">
                           {scan.domain}
-                        </h3>
-                         <a
+                        </h3>Scans received:&nbsp;
+                        <a
                           href={scan.url}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -374,7 +421,7 @@ useEffect(() => {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </main>
 

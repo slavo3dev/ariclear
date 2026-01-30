@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
 
-export const runtime = "nodejs"; // cheerio works best on node runtime
+export const runtime = "nodejs";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -30,11 +30,10 @@ function extractTextFromHtml(html: string) {
     .get()
     .filter(Boolean);
 
-  // Remove noisy tags
   $("script, style, noscript, svg, img").remove();
 
   const bodyTextRaw = $("body").text().replace(/\s+/g, " ").trim();
-  const bodySnippet = bodyTextRaw.slice(0, 5000); // MVP limit
+  const bodySnippet = bodyTextRaw.slice(0, 5000);
 
   return { title, metaDescription, h1, h2s, bodySnippet };
 }
@@ -78,6 +77,8 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log('🔍 Analyzing URL:', url);
+
     // Fetch the page
     const res = await fetch(url, {
       headers: {
@@ -96,6 +97,8 @@ export async function POST(req: Request) {
 
     const html = await res.text();
     const extracted = extractTextFromHtml(html);
+
+    console.log('📄 Extracted content, calling OpenAI...');
 
     const instructions = `
 You are AriClear, a website clarity + AI-SEO comprehension auditor.
@@ -154,10 +157,8 @@ Rules:
 - aiSeoPrompt: write a single copy/paste prompt the user can use to rewrite their hero + meta description + headings in a clear, AI-readable way.
 `.trim();
 
-
-    // ✅ Chat Completions + JSON mode (works with openai@6.14.0)
     const completion = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4o-mini", // Fixed model name
       messages: [
         { role: "system", content: instructions },
         {
@@ -168,6 +169,8 @@ Rules:
       response_format: { type: "json_object" },
       temperature: 0.2,
     });
+
+    console.log('✅ OpenAI response received');
 
     const outputText = completion.choices[0]?.message?.content?.trim();
     if (!outputText) {
@@ -185,7 +188,6 @@ Rules:
       );
     }
 
-    // Optional: basic runtime validation so your UI doesn't break
     if (!isReportShape(report)) {
       console.error("AI returned unexpected shape:", report);
       return NextResponse.json(
@@ -194,9 +196,34 @@ Rules:
       );
     }
 
+    console.log('🎉 Analysis complete');
+
     return NextResponse.json(report);
   } catch (err: any) {
-    console.error(err);
+    console.error('❌ Error:', err);
+
+    // Handle OpenAI rate limit errors specifically
+    if (err?.status === 429 || err?.code === 'rate_limit_exceeded') {
+      return NextResponse.json(
+        { 
+          error: "Rate limit reached. Please wait a moment and try again.",
+          rateLimited: true 
+        },
+        { status: 429 }
+      );
+    }
+
+    // Handle other OpenAI errors
+    if (err?.status) {
+      return NextResponse.json(
+        { 
+          error: `OpenAI API error: ${err.message || 'Unknown error'}`,
+          status: err.status 
+        },
+        { status: err.status }
+      );
+    }
+
     return NextResponse.json(
       { error: "Server error while analyzing the URL." },
       { status: 500 }

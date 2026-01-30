@@ -85,7 +85,7 @@ export function HeroSection() {
                     htmlFor="email"
                     className="text-xs font-medium uppercase tracking-[0.12em] text-choco-600"
                   >
-                    Get early access to AriClear
+                    Request a 60-day Trial
                   </label>
                   <input
                     id="email"

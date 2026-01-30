@@ -19,7 +19,25 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (subError || !subscription) {
-      return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+      // Create default subscription if it doesn't exist
+      await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: user.id,
+          tier: 'free',
+          websites_limit: 1
+        });
+
+      return NextResponse.json({
+        tier: 'free',
+        websites_limit: 1,
+        websites_used: 0,
+        websites_remaining: 1,
+        trial_expires_at: null,
+        trial_websites_requested: null,
+        is_trial_expired: false,
+        can_scan: true
+      });
     }
 
     // Count websites

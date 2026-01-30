@@ -28,49 +28,54 @@ export function Navbar() {
   const [authOpen, setAuthOpen] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
 
-useEffect(() => {
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") setMobileOpen(false);
-  };
-  window.addEventListener("keydown", onKeyDown);
-  return () => window.removeEventListener("keydown", onKeyDown);
-}, []);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
-// Fetch subscription when user logs in
-useEffect(() => {
-  if (!user) return;
-
-  const controller = new AbortController();
-  let alive = true;
-
-  (async () => {
-    try {
-      const res = await fetch("/api/subscription", { signal: controller.signal });
-      if (!res.ok) return;
-
-      const data = await res.json();
-
-      if (!alive) return;
-
-      // defer state update so it’s not synchronous inside effect lifecycle
-      queueMicrotask(() => {
-        if (alive) setSubscription(data);
-      });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      if (error?.name === "AbortError") return;
-      console.error("Error fetching subscription:", error);
+  // Fetch subscription when user logs in
+  useEffect(() => {
+    if (!user) {
+      // Use queueMicrotask to defer state update
+      queueMicrotask(() => setSubscription(null));
+      return;
     }
-  })();
 
-  return () => {
-    alive = false;
-    controller.abort();
-  };
-}, [user]);
+    let isMounted = true;
 
+    const fetchSubscription = async () => {
+      try {
+        const res = await fetch("/api/subscription");
+        if (!res.ok) {
+          console.error('Failed to fetch subscription:', res.status);
+          return;
+        }
 
+        const data = await res.json();
 
+        // Only update state if component is still mounted
+        if (isMounted) {
+          // Use queueMicrotask to defer state update to avoid synchronous setState
+          queueMicrotask(() => {
+            if (isMounted) {
+              setSubscription(data);
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching subscription:", error);
+      }
+    };
+
+    fetchSubscription();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -96,6 +101,7 @@ useEffect(() => {
   const handleLogout = async () => {
     closeMobile();
     await signOut();
+    setSubscription(null);
     router.push("/");
   };
 
@@ -108,8 +114,10 @@ useEffect(() => {
     return pathname === path;
   };
 
-  const getTierBadgeColor = (tier: string) => {
-    switch (tier) {
+  const getTierBadgeColor = (tier?: string) => {
+    if (!tier) return 'bg-gray-100 text-gray-700 ring-gray-300';
+    
+    switch (tier.toLowerCase()) {
       case 'free':
         return 'bg-gray-100 text-gray-700 ring-gray-300';
       case 'trial':
@@ -127,7 +135,8 @@ useEffect(() => {
     }
   };
 
-  const getTierLabel = (tier: string) => {
+  const getTierLabel = (tier?: string) => {
+    if (!tier) return 'Free';
     return tier.charAt(0).toUpperCase() + tier.slice(1);
   };
 
@@ -208,7 +217,7 @@ useEffect(() => {
               type="button"
               onClick={handleEarlyAccess}
             >
-              Get early access
+              Request Trial
             </Button>
 
             {user ? (
@@ -225,7 +234,7 @@ useEffect(() => {
                   </div>
                 )}
                 
-                <div className="text-xs text-choco-600 border-l border-choco-200 pl-3">
+                <div className="text-xs text-choco-600 border-l border-choco-200 pl-3 max-w-37.5 truncate">
                   {user.email}
                 </div>
                 <button
@@ -319,7 +328,7 @@ useEffect(() => {
                     className="w-full justify-center"
                     onClick={handleEarlyAccess}
                   >
-                    Get early access
+                    Request Trial
                   </Button>
                 </div>
 
