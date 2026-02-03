@@ -183,6 +183,14 @@ export function Navbar() {
             {user && (
               <>
                 <Link
+                  href="/dashboard"
+                  className={`hover:text-choco-900 transition ${
+                    isActive('/dashboard') ? 'font-semibold text-choco-900' : ''
+                  }`}
+                >
+                  Dashboard
+                </Link>
+                <Link
                   href="/scan"
                   className={`hover:text-choco-900 transition ${
                     isActive('/scan') ? 'font-semibold text-choco-900' : ''
@@ -234,9 +242,14 @@ export function Navbar() {
                   </div>
                 )}
                 
-                <div className="text-xs text-choco-600 border-l border-choco-200 pl-3 max-w-37.5 truncate">
+                {/* Clickable email that navigates to dashboard */}
+                <Link
+                  href="/dashboard"
+                  className="text-xs text-choco-600 border-l border-choco-200 pl-3 max-w-37.5 truncate hover:text-choco-900 transition cursor-pointer"
+                  title="Go to Dashboard"
+                >
                   {user.email}
-                </div>
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -294,6 +307,15 @@ export function Navbar() {
                 {user ? (
                   <>
                     <Link
+                      href="/dashboard"
+                      onClick={closeMobile}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
+                        isActive('/dashboard') ? 'bg-white/70 font-semibold' : ''
+                      }`}
+                    >
+                      📊 Dashboard
+                    </Link>
+                    <Link
                       href="/scan"
                       onClick={closeMobile}
                       className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
@@ -309,7 +331,7 @@ export function Navbar() {
                         isActive('/history') ? 'bg-white/70 font-semibold' : ''
                       }`}
                     >
-                      📊 History
+                      📜 History
                     </Link>
                   </>
                 ) : (
@@ -332,9 +354,13 @@ export function Navbar() {
                   </Button>
                 </div>
 
-                {/* User info with subscription */}
+                {/* User info with subscription - clickable to dashboard */}
                 {user && (
-                  <div className="pt-2 px-3 py-3 bg-white/50 rounded-xl space-y-2">
+                  <Link
+                    href="/dashboard"
+                    onClick={closeMobile}
+                    className="pt-2 px-3 py-3 bg-white/50 rounded-xl space-y-2 hover:bg-white/70 transition cursor-pointer"
+                  >
                     <p className="text-xs text-choco-600">
                       Signed in as
                     </p>
@@ -354,7 +380,7 @@ export function Navbar() {
                         </div>
                       </div>
                     )}
-                  </div>
+                  </Link>
                 )}
 
                 <div className="pt-2">

@@ -96,11 +96,6 @@ export default function HistoryPage() {
     
     const data = await res.json();
     
-    console.log('✅ Raw response:', data); // Log entire response
-    console.log('✅ Scans received:', data.scans?.length);
-    console.log('📦 Full scan data:', data.scans);
-    console.log('📦 Data keys:', Object.keys(data)); // See what keys exist
-    
     // Handle both possible response formats
     const scanData = data.scans || data || [];
     console.log('🎯 Final scan data:', scanData);
