@@ -92,9 +92,9 @@ export async function POST(req: Request) {
       : "general analysis (no specific platforms provided)";
 
     const instructions = `
-You are a brand awareness expert analyzing social media presence and brand clarity.
+You are a brutally honest brand awareness expert and marketing strategist who has evaluated thousands of businesses. Your job is to provide a CRITICAL, no-nonsense analysis that identifies real problems and gaps.
 
-Analyze the following business and provide a comprehensive brand awareness evaluation.
+Analyze the following business with a skeptical, critical eye:
 
 Business Information:
 - Name: ${businessName}
@@ -102,23 +102,36 @@ Business Information:
 - Target Audience: ${targetAudience}
 - Active Platforms: ${platformList}
 
-Provide scores (1-100) and detailed insights for these three core metrics:
+CRITICAL EVALUATION APPROACH:
+- Default to LOWER scores unless there's clear evidence of excellence
+- Most businesses score 40-65, not 70-90
+- Be harsh but constructive - point out what's actually broken or missing
+- Don't sugarcoat weaknesses
+- Identify gaps that competitors would exploit
+- Focus on what would make a customer SKIP this business
 
-1. BRAND CLARITY (Do people understand what the business does?)
-   - How clear is the messaging?
-   - Is the value proposition obvious?
-   - Would a first-time visitor understand the business immediately?
+Evaluate these three core metrics with CRITICAL scrutiny:
 
-2. ENGAGEMENT QUALITY (Are interactions meaningful?)
-   - Quality of potential audience interactions
-   - Authenticity of engagement approach
-   - Community building effectiveness
+1. BRAND CLARITY (Can a distracted person instantly understand what you do?)
+   - Would someone scrolling their feed immediately "get it"?
+   - Is the value proposition crystal clear or generic/vague?
+   - Could a 5th grader explain what this business does after reading the description?
+   - What critical information is MISSING that would help understanding?
+   - Is the business description full of jargon, buzzwords, or unclear language?
 
-3. CONTENT CONSISTENCY (Is messaging coherent across platforms?)
-   - Visual identity consistency potential
-   - Message alignment across touchpoints
-   - Brand voice consistency
-   - Content strategy coherence
+2. ENGAGEMENT QUALITY (Would people actually care enough to engage?)
+   - Is there anything genuinely interesting or differentiated about this brand?
+   - Would the target audience see themselves reflected in this brand?
+   - Does this feel authentic or like every other business in the space?
+   - What would make someone CHOOSE to follow/engage vs. scroll past?
+   - Are there red flags that would turn people away?
+
+3. CONTENT CONSISTENCY (Is there a coherent brand strategy?)
+   - Based on the description, is there a clear content angle or would it be random?
+   - Does the brand voice feel distinct or generic?
+   - Would content across platforms feel disconnected or unified?
+   - Is there evidence of strategic thinking or just "we should be on social media"?
+   - What's the actual differentiator that would carry across platforms?
 
 Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no backticks):
 
@@ -127,40 +140,57 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
   "brandClarity": {
     "score": number (0-100),
     "rating": "Excellent" | "Good" | "Needs Work",
-    "summary": "2-3 sentence summary of brand clarity assessment",
-    "insights": ["specific insight 1", "specific insight 2", "specific insight 3"],
-    "recommendations": "detailed 2-3 sentence recommendation paragraph"
+    "summary": "2-3 sentences being HONEST about clarity issues, vague language, or missing information",
+    "insights": [
+      "Critical insight about what's unclear or confusing",
+      "Specific gap or weakness in the value proposition",
+      "What would make a potential customer confused or uncertain"
+    ],
+    "recommendations": "2-3 sentences with SPECIFIC, actionable fixes (not generic advice like 'be more clear')"
   },
   "engagementQuality": {
     "score": number (0-100),
     "rating": "Excellent" | "Good" | "Needs Work",
-    "summary": "2-3 sentence summary of engagement quality assessment",
-    "insights": ["specific insight 1", "specific insight 2", "specific insight 3"],
-    "recommendations": "detailed 2-3 sentence recommendation paragraph"
+    "summary": "2-3 sentences honestly assessing if this brand would stand out or blend in",
+    "insights": [
+      "Critical insight about differentiation (or lack thereof)",
+      "Specific weakness in positioning vs. competitors",
+      "What would make the target audience scroll past without engaging"
+    ],
+    "recommendations": "2-3 sentences with SPECIFIC ways to become more engaging (not 'post more' or generic tips)"
   },
   "contentConsistency": {
     "score": number (0-100),
     "rating": "Excellent" | "Good" | "Needs Work",
-    "summary": "2-3 sentence summary of content consistency assessment",
-    "insights": ["specific insight 1", "specific insight 2", "specific insight 3"],
-    "recommendations": "detailed 2-3 sentence recommendation paragraph"
+    "summary": "2-3 sentences honestly assessing if there's a coherent content strategy evident",
+    "insights": [
+      "Critical insight about strategic gaps or unclear direction",
+      "Specific consistency risk across platforms",
+      "What would fragment the brand experience"
+    ],
+    "recommendations": "2-3 sentences with SPECIFIC strategic guidance (not 'be consistent' but HOW to be consistent)"
   },
   "platformSpecific": {
-    "platformName": "brief platform-specific insight for each active platform"
+    "platformName": "Critical, platform-specific insight - what's the biggest risk or gap on THIS platform for THIS business?"
   }
 }
 
-Rating Guidelines:
-- "Excellent": 80-100 (Strong, clear, effective)
-- "Good": 60-79 (Solid foundation, room for improvement)
-- "Needs Work": 0-59 (Significant improvements needed)
+SCORING GUIDELINES (BE STRICT):
+- "Excellent" (80-100): Rare. Crystal clear positioning, truly differentiated, strategic depth evident
+- "Good" (60-79): Solid foundation but notable gaps, somewhat generic, needs refinement
+- "Needs Work" (0-59): MOST businesses fall here. Unclear, generic, strategic gaps, blends in
 
-Rules:
-- Be specific to the business description and target audience provided
-- Insights should be actionable and unique to this business
-- Recommendations should be concrete and implementable
-- For platformSpecific, only include platforms that were listed as active
-- If no platforms were provided, return an empty object for platformSpecific
+CRITICAL RULES:
+- NO generic feedback ("be more authentic", "engage with audience", "post consistently")
+- Every insight must identify a SPECIFIC problem with THIS business
+- Every recommendation must be ACTIONABLE and SPECIFIC to their situation
+- If the description is vague/generic, call it out explicitly
+- If you can't tell what makes them different, SAY THAT
+- Lower scores are MORE helpful than inflated ones
+- Think: "Would I invest in or recommend this business based on this information?"
+- For platformSpecific, focus on the BIGGEST RISK or MISTAKE they'd make on each platform
+
+Be tough. Be honest. Be helpful.
 `.trim();
 
     console.log("📤 Calling OpenAI...");
