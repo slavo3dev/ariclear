@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -26,20 +26,42 @@ export function Navbar() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+        setUserDropdownOpen(false);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setUserDropdownOpen(false);
+      }
+    };
+
+    if (userDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [userDropdownOpen]);
+
   // Fetch subscription when user logs in
   useEffect(() => {
     if (!user) {
-      // Use queueMicrotask to defer state update
       queueMicrotask(() => setSubscription(null));
       return;
     }
@@ -56,9 +78,7 @@ export function Navbar() {
 
         const data = await res.json();
 
-        // Only update state if component is still mounted
         if (isMounted) {
-          // Use queueMicrotask to defer state update to avoid synchronous setState
           queueMicrotask(() => {
             if (isMounted) {
               setSubscription(data);
@@ -78,6 +98,7 @@ export function Navbar() {
   }, [user]);
 
   const closeMobile = () => setMobileOpen(false);
+  const closeDropdown = () => setUserDropdownOpen(false);
 
   const handleTryDemo = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -100,6 +121,7 @@ export function Navbar() {
 
   const handleLogout = async () => {
     closeMobile();
+    closeDropdown();
     await signOut();
     setSubscription(null);
     router.push("/");
@@ -138,6 +160,18 @@ export function Navbar() {
   const getTierLabel = (tier?: string) => {
     if (!tier) return 'Free';
     return tier.charAt(0).toUpperCase() + tier.slice(1);
+  };
+
+  const getUsagePercentage = () => {
+    if (!subscription) return 0;
+    return (subscription.websites_used / subscription.websites_limit) * 100;
+  };
+
+  const getUsageColor = () => {
+    const percentage = getUsagePercentage();
+    if (percentage >= 90) return "bg-red-500";
+    if (percentage >= 70) return "bg-orange-500";
+    return "bg-green-500";
   };
 
   return (
@@ -179,36 +213,6 @@ export function Navbar() {
               Who it&apos;s for
             </Link>
 
-            {/* Show these links only for authenticated users */}
-            {user && (
-              <>
-                <Link
-                  href="/dashboard"
-                  className={`hover:text-choco-900 transition ${
-                    isActive('/dashboard') ? 'font-semibold text-choco-900' : ''
-                  }`}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/scan"
-                  className={`hover:text-choco-900 transition ${
-                    isActive('/scan') ? 'font-semibold text-choco-900' : ''
-                  }`}
-                >
-                  Scan
-                </Link>
-                <Link
-                  href="/history"
-                  className={`hover:text-choco-900 transition ${
-                    isActive('/history') ? 'font-semibold text-choco-900' : ''
-                  }`}
-                >
-                  History
-                </Link>
-              </>
-            )}
-
             {/* Show Try Demo only for non-authenticated users */}
             {!user && (
               <button
@@ -229,34 +233,139 @@ export function Navbar() {
             </Button>
 
             {user ? (
-              <div className="flex items-center gap-3">
-                {/* Subscription Info */}
-                {subscription && (
-                  <div className="flex items-center gap-2 border-l border-choco-200 pl-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
-                      {getTierLabel(subscription.tier)}
-                    </span>
-                    <span className="text-xs text-choco-600">
-                      {subscription.websites_used}/{subscription.websites_limit} sites
-                    </span>
-                  </div>
-                )}
-                
-                {/* Clickable email that navigates to dashboard */}
-                <Link
-                  href="/dashboard"
-                  className="text-xs text-choco-600 border-l border-choco-200 pl-3 max-w-37.5 truncate hover:text-choco-900 transition cursor-pointer"
-                  title="Go to Dashboard"
-                >
-                  {user.email}
-                </Link>
+              <div className="relative" ref={dropdownRef}>
+                {/* User Dropdown Trigger */}
                 <button
                   type="button"
-                  onClick={handleLogout}
-                  className="text-xs text-choco-700 hover:text-choco-900 transition"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-2 rounded-xl border border-choco-200 bg-white/70 px-3 py-2 text-xs hover:bg-white transition focus:outline-none focus:ring-2 focus:ring-choco-400"
                 >
-                  Logout
+                  <div className="flex items-center gap-2">
+                    {/* User Avatar/Initial */}
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-choco-800 text-white text-xs font-semibold">
+                      {user.email?.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="max-w-[120px] truncate text-choco-900">
+                      {user.email?.split('@')[0]}
+                    </span>
+                  </div>
+                  <svg
+                    className={`h-4 w-4 text-choco-600 transition-transform ${
+                      userDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
                 </button>
+
+                {/* Dropdown Menu */}
+                {userDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-72 rounded-xl border border-choco-200 bg-white shadow-lg overflow-hidden">
+                    {/* User Info Section */}
+                    <div className="px-4 py-3 border-b border-choco-100 bg-cream-50/50">
+                      <p className="text-xs text-choco-600 mb-1">Signed in as</p>
+                      <p className="text-sm font-medium text-choco-900 truncate">
+                        {user.email}
+                      </p>
+                      
+                      {/* Subscription Info */}
+                      {subscription && (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
+                              {getTierLabel(subscription.tier)}
+                            </span>
+                            <span className="text-xs text-choco-600">
+                              {subscription.websites_used}/{subscription.websites_limit} sites
+                            </span>
+                          </div>
+                          
+                          {/* Usage Bar */}
+                          <div className="w-full bg-choco-100 rounded-full h-1.5">
+                            <div
+                              className={`h-1.5 rounded-full transition-all ${getUsageColor()}`}
+                              style={{ width: `${getUsagePercentage()}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Navigation Links */}
+                    <div className="py-1">
+                      <Link
+                        href="/dashboard"
+                        onClick={closeDropdown}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
+                          isActive('/dashboard') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
+                        }`}
+                      >
+                        <span className="text-base">📊</span>
+                        <span>Dashboard</span>
+                      </Link>
+
+                      <Link
+                        href="/scan"
+                        onClick={closeDropdown}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
+                          isActive('/scan') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
+                        }`}
+                      >
+                        <span className="text-base">🔍</span>
+                        <span>New Scan</span>
+                        {subscription?.can_scan && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-green-500" title="Ready to scan" />
+                        )}
+                      </Link>
+
+                      <Link
+                        href="/history"
+                        onClick={closeDropdown}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
+                          isActive('/history') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
+                        }`}
+                      >
+                        <span className="text-base">📜</span>
+                        <span>History</span>
+                      </Link>
+
+                      <div className="border-t border-choco-100 my-1" />
+
+                      <button
+                        type="button"
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-choco-700 hover:bg-cream-50 transition"
+                        onClick={() => {
+                          closeDropdown();
+                          // Add settings functionality here
+                          console.log('Settings clicked');
+                        }}
+                      >
+                        <span className="text-base">⚙️</span>
+                        <span>Settings</span>
+                      </button>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="border-t border-choco-100 py-1">
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
+                      >
+                        <span className="text-base">🚪</span>
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -306,6 +415,12 @@ export function Navbar() {
                 {/* Show these links only for authenticated users */}
                 {user ? (
                   <>
+                    <div className="pt-2 pb-1 px-3">
+                      <p className="text-xs text-choco-600 uppercase tracking-wide font-semibold">
+                        Your Account
+                      </p>
+                    </div>
+                    
                     <Link
                       href="/dashboard"
                       onClick={closeMobile}
@@ -322,7 +437,7 @@ export function Navbar() {
                         isActive('/scan') ? 'bg-white/70 font-semibold' : ''
                       }`}
                     >
-                      🔍 Scan Website
+                      🔍 New Scan
                     </Link>
                     <Link
                       href="/history"
@@ -333,6 +448,16 @@ export function Navbar() {
                     >
                       📜 History
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMobile();
+                        console.log('Settings clicked');
+                      }}
+                      className="rounded-xl px-3 py-2 hover:bg-white/70 transition text-left"
+                    >
+                      ⚙️ Settings
+                    </button>
                   </>
                 ) : (
                   <button
@@ -354,13 +479,9 @@ export function Navbar() {
                   </Button>
                 </div>
 
-                {/* User info with subscription - clickable to dashboard */}
+                {/* User info with subscription */}
                 {user && (
-                  <Link
-                    href="/dashboard"
-                    onClick={closeMobile}
-                    className="pt-2 px-3 py-3 bg-white/50 rounded-xl space-y-2 hover:bg-white/70 transition cursor-pointer"
-                  >
+                  <div className="pt-2 px-3 py-3 bg-white/50 rounded-xl space-y-2">
                     <p className="text-xs text-choco-600">
                       Signed in as
                     </p>
@@ -369,18 +490,28 @@ export function Navbar() {
                     </p>
                     
                     {subscription && (
-                      <div className="flex items-center justify-between pt-2 border-t border-choco-200">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
-                            {getTierLabel(subscription.tier)}
-                          </span>
+                      <>
+                        <div className="flex items-center justify-between pt-2 border-t border-choco-200">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
+                              {getTierLabel(subscription.tier)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-choco-600">
+                            {subscription.websites_used}/{subscription.websites_limit} websites
+                          </div>
                         </div>
-                        <div className="text-xs text-choco-600">
-                          {subscription.websites_used}/{subscription.websites_limit} websites
+                        
+                        {/* Usage Bar for Mobile */}
+                        <div className="w-full bg-choco-100 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${getUsageColor()}`}
+                            style={{ width: `${getUsagePercentage()}%` }}
+                          />
                         </div>
-                      </div>
+                      </>
                     )}
-                  </Link>
+                  </div>
                 )}
 
                 <div className="pt-2">
