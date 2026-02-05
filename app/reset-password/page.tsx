@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabaseAriClear } from "@ariclear/lib/supabase/auth/browser";
 import { Button } from "@ariclear/components";
 import { api } from "@ariclear/lib/api/axios";
 
