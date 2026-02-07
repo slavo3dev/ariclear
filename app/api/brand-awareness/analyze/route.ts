@@ -193,8 +193,6 @@ CRITICAL RULES:
 Be tough. Be honest. Be helpful.
 `.trim();
 
-    console.log("📤 Calling OpenAI...");
-
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
