@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@ariclear/components";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Navbar, SiteFooter } from "@ariclear/components";
 
 type SubscriptionInfo = {
   tier: string;
@@ -125,6 +126,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-cream-50">
+      <Navbar />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -337,6 +339,7 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

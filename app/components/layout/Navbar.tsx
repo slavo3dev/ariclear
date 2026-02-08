@@ -320,7 +320,21 @@ export function Navbar() {
                         }`}
                       >
                         <span className="text-base">🔍</span>
-                        <span>New Scan</span>
+                        <span>Site Scan</span>
+                        {subscription?.can_scan && (
+                          <span className="ml-auto w-2 h-2 rounded-full bg-green-500" title="Ready to scan" />
+                        )}
+                      </Link>
+
+                       <Link
+                        href="/brand-awareness"
+                        onClick={closeDropdown}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
+                          isActive('/brand-awareness') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
+                        }`}
+                      >
+                        <span className="text-base">🔍</span>
+                        <span>Brand Awareness</span>
                         {subscription?.can_scan && (
                           <span className="ml-auto w-2 h-2 rounded-full bg-green-500" title="Ready to scan" />
                         )}
@@ -437,7 +451,16 @@ export function Navbar() {
                         isActive('/scan') ? 'bg-white/70 font-semibold' : ''
                       }`}
                     >
-                      🔍 New Scan
+                      🔍 Site Scan
+                    </Link>
+                     <Link
+                      href="/brand-awareness"
+                      onClick={closeMobile}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
+                        isActive('/brand-awareness') ? 'bg-white/70 font-semibold' : ''
+                      }`}
+                    >
+                      📊 Brand Awareness
                     </Link>
                     <Link
                       href="/history"
