@@ -11,4 +11,3 @@ pnpm dev
 - nextjs
 - supabase
 - openAI
-- supabase auth
