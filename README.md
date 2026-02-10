@@ -11,3 +11,4 @@ pnpm dev
 - nextjs
 - supabase
 - openAI
+- jest
