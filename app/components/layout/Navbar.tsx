@@ -42,32 +42,26 @@ export function Navbar() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setUserDropdownOpen(false);
       }
     };
-
     if (userDropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [userDropdownOpen]);
 
-  // Fetch subscription when user logs in
   useEffect(() => {
     if (!user) {
       queueMicrotask(() => setSubscription(null));
       return;
     }
-
     let isMounted = true;
-
     const fetchSubscription = async () => {
       try {
         const res = await fetch("/api/subscription");
@@ -75,26 +69,18 @@ export function Navbar() {
           console.error('Failed to fetch subscription:', res.status);
           return;
         }
-
         const data = await res.json();
-
         if (isMounted) {
           queueMicrotask(() => {
-            if (isMounted) {
-              setSubscription(data);
-            }
+            if (isMounted) setSubscription(data);
           });
         }
       } catch (error) {
         console.error("Error fetching subscription:", error);
       }
     };
-
     fetchSubscription();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [user]);
 
   const closeMobile = () => setMobileOpen(false);
@@ -103,14 +89,11 @@ export function Navbar() {
   const handleTryDemo = (e: React.MouseEvent) => {
     e.preventDefault();
     closeMobile();
-
     if (loading) return;
-
     if (!user) {
       setAuthOpen(true);
       return;
     }
-
     router.push("/scan");
   };
 
@@ -132,28 +115,18 @@ export function Navbar() {
     openPreorderModal();
   };
 
-  const isActive = (path: string) => {
-    return pathname === path;
-  };
+  const isActive = (path: string) => pathname === path;
 
   const getTierBadgeColor = (tier?: string) => {
     if (!tier) return 'bg-gray-100 text-gray-700 ring-gray-300';
-    
     switch (tier.toLowerCase()) {
-      case 'free':
-        return 'bg-gray-100 text-gray-700 ring-gray-300';
-      case 'trial':
-        return 'bg-blue-100 text-blue-700 ring-blue-300';
-      case 'starter':
-        return 'bg-green-100 text-green-700 ring-green-300';
-      case 'pro':
-        return 'bg-purple-100 text-purple-700 ring-purple-300';
-      case 'business':
-        return 'bg-orange-100 text-orange-700 ring-orange-300';
-      case 'agency':
-        return 'bg-red-100 text-red-700 ring-red-300';
-      default:
-        return 'bg-gray-100 text-gray-700 ring-gray-300';
+      case 'free':     return 'bg-gray-100 text-gray-700 ring-gray-300';
+      case 'trial':    return 'bg-blue-100 text-blue-700 ring-blue-300';
+      case 'starter':  return 'bg-green-100 text-green-700 ring-green-300';
+      case 'pro':      return 'bg-purple-100 text-purple-700 ring-purple-300';
+      case 'business': return 'bg-orange-100 text-orange-700 ring-orange-300';
+      case 'agency':   return 'bg-red-100 text-red-700 ring-red-300';
+      default:         return 'bg-gray-100 text-gray-700 ring-gray-300';
     }
   };
 
@@ -200,20 +173,13 @@ export function Navbar() {
 
           {/* Desktop */}
           <nav className="hidden items-center gap-4 text-sm text-choco-700 md:flex">
-            <Link 
-              href="/#how-it-works" 
-              className="hover:text-choco-900 transition"
-            >
+            <Link href="/#how-it-works" className="hover:text-choco-900 transition">
               How it works
             </Link>
-            <Link 
-              href="/#who-its-for" 
-              className="hover:text-choco-900 transition"
-            >
+            <Link href="/#who-its-for" className="hover:text-choco-900 transition">
               Who it&apos;s for
             </Link>
 
-            {/* Show Try Demo only for non-authenticated users */}
             {!user && (
               <button
                 type="button"
@@ -234,14 +200,12 @@ export function Navbar() {
 
             {user ? (
               <div className="relative" ref={dropdownRef}>
-                {/* User Dropdown Trigger */}
                 <button
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                   className="flex items-center gap-2 rounded-xl border border-choco-200 bg-white/70 px-3 py-2 text-xs hover:bg-white transition focus:outline-none focus:ring-2 focus:ring-choco-400"
                 >
                   <div className="flex items-center gap-2">
-                    {/* User Avatar/Initial */}
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-choco-800 text-white text-xs font-semibold">
                       {user.email?.charAt(0).toUpperCase()}
                     </div>
@@ -250,33 +214,21 @@ export function Navbar() {
                     </span>
                   </div>
                   <svg
-                    className={`h-4 w-4 text-choco-600 transition-transform ${
-                      userDropdownOpen ? 'rotate-180' : ''
-                    }`}
+                    className={`h-4 w-4 text-choco-600 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
 
-                {/* Dropdown Menu */}
                 {userDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-72 rounded-xl border border-choco-200 bg-white shadow-lg overflow-hidden">
-                    {/* User Info Section */}
+                    {/* User Info */}
                     <div className="px-4 py-3 border-b border-choco-100 bg-cream-50/50">
                       <p className="text-xs text-choco-600 mb-1">Signed in as</p>
-                      <p className="text-sm font-medium text-choco-900 truncate">
-                        {user.email}
-                      </p>
-                      
-                      {/* Subscription Info */}
+                      <p className="text-sm font-medium text-choco-900 truncate">{user.email}</p>
                       {subscription && (
                         <div className="mt-3 space-y-2">
                           <div className="flex items-center justify-between">
@@ -287,8 +239,6 @@ export function Navbar() {
                               {subscription.websites_used}/{subscription.websites_limit} sites
                             </span>
                           </div>
-                          
-                          {/* Usage Bar */}
                           <div className="w-full bg-choco-100 rounded-full h-1.5">
                             <div
                               className={`h-1.5 rounded-full transition-all ${getUsageColor()}`}
@@ -299,14 +249,12 @@ export function Navbar() {
                       )}
                     </div>
 
-                    {/* Navigation Links */}
+                    {/* Nav Links */}
                     <div className="py-1">
                       <Link
                         href="/dashboard"
                         onClick={closeDropdown}
-                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
-                          isActive('/dashboard') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
-                        }`}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${isActive('/dashboard') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'}`}
                       >
                         <span className="text-base">📊</span>
                         <span>Dashboard</span>
@@ -315,9 +263,7 @@ export function Navbar() {
                       <Link
                         href="/scan"
                         onClick={closeDropdown}
-                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
-                          isActive('/scan') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
-                        }`}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${isActive('/scan') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'}`}
                       >
                         <span className="text-base">🔍</span>
                         <span>Site Scan</span>
@@ -326,14 +272,22 @@ export function Navbar() {
                         )}
                       </Link>
 
-                       <Link
+                      {/* ── Website Monitor (new) ── */}
+                      <Link
+                        href="/website-monitor"
+                        onClick={closeDropdown}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${isActive('/website-monitor') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'}`}
+                      >
+                        <span className="text-base">🌐</span>
+                        <span>Website Monitor</span>
+                      </Link>
+
+                      <Link
                         href="/brand-awareness"
                         onClick={closeDropdown}
-                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
-                          isActive('/brand-awareness') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
-                        }`}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${isActive('/brand-awareness') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'}`}
                       >
-                        <span className="text-base">🔍</span>
+                        <span className="text-base">📣</span>
                         <span>Brand Awareness</span>
                         {subscription?.can_scan && (
                           <span className="ml-auto w-2 h-2 rounded-full bg-green-500" title="Ready to scan" />
@@ -343,9 +297,7 @@ export function Navbar() {
                       <Link
                         href="/history"
                         onClick={closeDropdown}
-                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${
-                          isActive('/history') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'
-                        }`}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cream-50 transition ${isActive('/history') ? 'bg-cream-50 text-choco-900 font-medium' : 'text-choco-700'}`}
                       >
                         <span className="text-base">📜</span>
                         <span>History</span>
@@ -356,11 +308,7 @@ export function Navbar() {
                       <button
                         type="button"
                         className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-choco-700 hover:bg-cream-50 transition"
-                        onClick={() => {
-                          closeDropdown();
-                          // Add settings functionality here
-                          console.log('Settings clicked');
-                        }}
+                        onClick={() => { closeDropdown(); console.log('Settings clicked'); }}
                       >
                         <span className="text-base">⚙️</span>
                         <span>Settings</span>
@@ -400,9 +348,7 @@ export function Navbar() {
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
           >
-            <span className="text-lg leading-none">
-              {mobileOpen ? "✕" : "☰"}
-            </span>
+            <span className="text-lg leading-none">{mobileOpen ? "✕" : "☰"}</span>
           </button>
         </div>
 
@@ -411,72 +357,60 @@ export function Navbar() {
           <div className="border-t border-choco-100 bg-cream-50/95 backdrop-blur-sm md:hidden">
             <nav className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
               <div className="flex flex-col gap-2 text-sm text-choco-800">
-                <Link
-                  href="/#how-it-works"
-                  onClick={closeMobile}
-                  className="rounded-xl px-3 py-2 hover:bg-white/70 transition"
-                >
+                <Link href="/#how-it-works" onClick={closeMobile} className="rounded-xl px-3 py-2 hover:bg-white/70 transition">
                   How it works
                 </Link>
-                <Link
-                  href="/#who-its-for"
-                  onClick={closeMobile}
-                  className="rounded-xl px-3 py-2 hover:bg-white/70 transition"
-                >
+                <Link href="/#who-its-for" onClick={closeMobile} className="rounded-xl px-3 py-2 hover:bg-white/70 transition">
                   Who it&apos;s for
                 </Link>
 
-                {/* Show these links only for authenticated users */}
                 {user ? (
                   <>
                     <div className="pt-2 pb-1 px-3">
-                      <p className="text-xs text-choco-600 uppercase tracking-wide font-semibold">
-                        Your Account
-                      </p>
+                      <p className="text-xs text-choco-600 uppercase tracking-wide font-semibold">Your Account</p>
                     </div>
-                    
+
                     <Link
                       href="/dashboard"
                       onClick={closeMobile}
-                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
-                        isActive('/dashboard') ? 'bg-white/70 font-semibold' : ''
-                      }`}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${isActive('/dashboard') ? 'bg-white/70 font-semibold' : ''}`}
                     >
                       📊 Dashboard
                     </Link>
                     <Link
                       href="/scan"
                       onClick={closeMobile}
-                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
-                        isActive('/scan') ? 'bg-white/70 font-semibold' : ''
-                      }`}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${isActive('/scan') ? 'bg-white/70 font-semibold' : ''}`}
                     >
                       🔍 Site Scan
                     </Link>
-                     <Link
+
+                    {/* ── Website Monitor (new) ── */}
+                    <Link
+                      href="/website-monitor"
+                      onClick={closeMobile}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${isActive('/website-monitor') ? 'bg-white/70 font-semibold' : ''}`}
+                    >
+                      🌐 Website Monitor
+                    </Link>
+
+                    <Link
                       href="/brand-awareness"
                       onClick={closeMobile}
-                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
-                        isActive('/brand-awareness') ? 'bg-white/70 font-semibold' : ''
-                      }`}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${isActive('/brand-awareness') ? 'bg-white/70 font-semibold' : ''}`}
                     >
-                      📊 Brand Awareness
+                      📣 Brand Awareness
                     </Link>
                     <Link
                       href="/history"
                       onClick={closeMobile}
-                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${
-                        isActive('/history') ? 'bg-white/70 font-semibold' : ''
-                      }`}
+                      className={`rounded-xl px-3 py-2 hover:bg-white/70 transition ${isActive('/history') ? 'bg-white/70 font-semibold' : ''}`}
                     >
                       📜 History
                     </Link>
                     <button
                       type="button"
-                      onClick={() => {
-                        closeMobile();
-                        console.log('Settings clicked');
-                      }}
+                      onClick={() => { closeMobile(); console.log('Settings clicked'); }}
                       className="rounded-xl px-3 py-2 hover:bg-white/70 transition text-left"
                     >
                       ⚙️ Settings
@@ -493,39 +427,25 @@ export function Navbar() {
                 )}
 
                 <div className="pt-2">
-                  <Button
-                    type="button"
-                    className="w-full justify-center"
-                    onClick={handleEarlyAccess}
-                  >
+                  <Button type="button" className="w-full justify-center" onClick={handleEarlyAccess}>
                     Request Trial
                   </Button>
                 </div>
 
-                {/* User info with subscription */}
                 {user && (
                   <div className="pt-2 px-3 py-3 bg-white/50 rounded-xl space-y-2">
-                    <p className="text-xs text-choco-600">
-                      Signed in as
-                    </p>
-                    <p className="text-xs font-medium text-choco-900 truncate">
-                      {user.email}
-                    </p>
-                    
+                    <p className="text-xs text-choco-600">Signed in as</p>
+                    <p className="text-xs font-medium text-choco-900 truncate">{user.email}</p>
                     {subscription && (
                       <>
                         <div className="flex items-center justify-between pt-2 border-t border-choco-200">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
-                              {getTierLabel(subscription.tier)}
-                            </span>
-                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ${getTierBadgeColor(subscription.tier)}`}>
+                            {getTierLabel(subscription.tier)}
+                          </span>
                           <div className="text-xs text-choco-600">
                             {subscription.websites_used}/{subscription.websites_limit} websites
                           </div>
                         </div>
-                        
-                        {/* Usage Bar for Mobile */}
                         <div className="w-full bg-choco-100 rounded-full h-1.5">
                           <div
                             className={`h-1.5 rounded-full transition-all ${getUsageColor()}`}
@@ -547,11 +467,7 @@ export function Navbar() {
                       Logout
                     </button>
                   ) : (
-                    <Button
-                      type="button"
-                      className="w-full justify-center"
-                      onClick={handleLogin}
-                    >
+                    <Button type="button" className="w-full justify-center" onClick={handleLogin}>
                       Login / Sign up
                     </Button>
                   )}
@@ -562,11 +478,7 @@ export function Navbar() {
         )}
       </header>
 
-      <AuthModal
-        open={authOpen}
-        onClose={() => setAuthOpen(false)}
-        initialMode="login"
-      />
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} initialMode="login" />
     </>
   );
 }
