@@ -57,7 +57,8 @@ export function PricingSection() {
 
   const handleSelect = (plan: (typeof plans)[0]) => {
     if (plan.isFree) {
-      router.push("/scan");
+      const isLoggedIn = !!localStorage.getItem("token"); // replace with your real auth check e.g. useSession, useAuth
+      router.push(isLoggedIn ? "/dashboard" : "/login");
     } else {
       setShowModal(true);
     }
