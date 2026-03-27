@@ -14,7 +14,7 @@ const pricingPlans = [
     description: "A clarity check you can use anytime this year",
     tagline: '"Pay once. Get clarity when it matters."',
     features: [
-      "Up to 3 websites",
+      "Up to 1 websites",
       "Unlimited clarity scans",
       "Clarity score & breakdown",
       "Headline & value proposition feedback",
