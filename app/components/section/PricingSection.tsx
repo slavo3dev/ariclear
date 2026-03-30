@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, PreorderForm } from "@ariclear/components";
+import { Button, PreorderForm, useAuth, AuthModal } from "@ariclear/components";
 
 const plans = [
   {
@@ -53,14 +53,21 @@ const plans = [
 
 export function PricingSection() {
   const router = useRouter();
-  const [showModal, setShowModal] = useState(false);
+  const { user, loading } = useAuth();
+
+  const [showPreorderModal, setShowPreorderModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleSelect = (plan: (typeof plans)[0]) => {
     if (plan.isFree) {
-      const isLoggedIn = !!localStorage.getItem("token"); // replace with your real auth check e.g. useSession, useAuth
-      router.push(isLoggedIn ? "/dashboard" : "/login");
+      if (loading) return;
+      if (user) {
+        router.push("/dashboard");
+      } else {
+        setShowAuthModal(true);
+      }
     } else {
-      setShowModal(true);
+      setShowPreorderModal(true);
     }
   };
 
@@ -184,6 +191,7 @@ export function PricingSection() {
               <Button
                 type="button"
                 onClick={() => handleSelect(plan)}
+                disabled={loading}
                 className={`w-full justify-center font-semibold py-3 rounded-xl transition-all duration-200 ${
                   plan.isFree
                     ? "bg-choco-900 text-cream-50 hover:bg-choco-800"
@@ -209,24 +217,31 @@ export function PricingSection() {
         </p>
       </div>
 
-      {/* Pre-order Modal */}
-      {showModal && (
+      {/* Auth Modal — opens when unauthenticated user clicks free plan */}
+      <AuthModal
+        open={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialMode="login"
+      />
+
+      {/* Preorder Modal — opens for Pro plan */}
+      {showPreorderModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-choco-900/70 backdrop-blur-sm p-4"
-          onClick={() => setShowModal(false)}
+          onClick={() => setShowPreorderModal(false)}
         >
           <div
             className="relative max-w-lg w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => setShowModal(false)}
+              onClick={() => setShowPreorderModal(false)}
               className="absolute -top-3 -right-3 bg-choco-900 text-cream-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-choco-800 transition-all duration-300 shadow-lg z-10"
               aria-label="Close modal"
             >
               ✕
             </button>
-            <PreorderForm onSuccess={() => setShowModal(false)} />
+            <PreorderForm onSuccess={() => setShowPreorderModal(false)} />
           </div>
         </div>
       )}
