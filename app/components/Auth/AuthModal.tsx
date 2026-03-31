@@ -1,11 +1,79 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Button } from "@ariclear/components";
 import { api } from "@ariclear/lib/api/axios";
 import { useAuth } from "../providers/AuthProvider";
 
 type Mode = "login" | "signup" | "reset";
+
+function getFriendlyError(err: unknown, mode: Mode): string {
+  let status: number | null = null;
+  let serverMessage = "";
+
+  if (err && typeof err === "object" && "response" in err) {
+    const apiErr = err as {
+      response?: { status?: number; data?: { message?: string } };
+    };
+    status = apiErr.response?.status ?? null;
+    serverMessage = apiErr.response?.data?.message ?? "";
+  }
+
+  // Use server message if it's already human-readable
+  if (
+    serverMessage &&
+    !serverMessage.toLowerCase().includes("status code") &&
+    !serverMessage.toLowerCase().includes("request failed")
+  ) {
+    return serverMessage;
+  }
+
+  if (mode === "login") {
+    if (status === 400 || status === 401 || status === 403)
+      return "Wrong email or password. Please try again.";
+    if (status === 404)
+      return "No account found with that email. Want to create one?";
+    if (status === 429)
+      return "Too many attempts — wait a moment and try again.";
+  }
+
+  if (mode === "signup") {
+    if (status === 409 || status === 400)
+      return "An account with this email already exists. Try logging in instead.";
+    if (status === 422)
+      return "Your password must be at least 6 characters.";
+  }
+
+  if (mode === "reset") {
+    if (status === 404)
+      return "We couldn't find that email address. Double-check it and try again.";
+  }
+
+  if (status && status >= 500)
+    return "Something went wrong on our end. Please try again in a moment.";
+
+  if (typeof navigator !== "undefined" && !navigator.onLine)
+    return "It looks like you're offline. Check your connection and try again.";
+
+  return "Something went wrong. Please try again.";
+}
+
+function useAutoDismiss(
+  value: string | null,
+  setter: (v: string | null) => void,
+  delay = 5500
+) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!value) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setter(null), delay);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [value, setter, delay]);
+}
 
 export function AuthModal({
   open,
@@ -24,6 +92,8 @@ export function AuthModal({
   const [success, setSuccess] = useState<string | null>(null);
 
   const { refreshUser } = useAuth();
+
+  useAutoDismiss(error, setError);
 
   const title = useMemo(() => {
     switch (mode) {
@@ -46,10 +116,7 @@ export function AuthModal({
 
     try {
       if (mode === "login") {
-        await api.post("/auth/login", {
-          email,
-          password,
-        });
+        await api.post("/auth/login", { email, password });
         await refreshUser();
         onClose();
       }
@@ -60,7 +127,6 @@ export function AuthModal({
           password,
           redirectTo: `${window.location.origin}/verify-email`,
         });
-
         setSuccess("Check your email to verify your account.");
       }
 
@@ -69,20 +135,10 @@ export function AuthModal({
           email,
           redirectTo: `${window.location.origin}/reset-password`,
         });
-
         setSuccess("Password reset email sent.");
       }
     } catch (err: unknown) {
-      let message = "Authentication error";
-
-      if (err instanceof Error) {
-        message = err.message;
-      } else if (err && typeof err === "object" && "response" in err) {
-        const apiError = err as { response?: { data?: { message?: string } } };
-        message = apiError.response?.data?.message ?? message;
-      }
-
-      setError(message);
+      setError(getFriendlyError(err, mode));
     } finally {
       setLoading(false);
     }
@@ -152,13 +208,15 @@ export function AuthModal({
             </div>
           )}
 
-          {/* Feedback */}
+          {/* Error */}
           {error && (
-            <p className="rounded-xl bg-choco-800 px-3 py-2 text-xs text-cream-100">
-              ⚠️ {error}
-            </p>
+            <div className="relative overflow-hidden rounded-xl bg-choco-800 px-3 py-2">
+              <p className="text-xs text-cream-100">⚠️ {error}</p>
+              <span className="animate-shrink absolute bottom-0 left-0 h-[2px] bg-cream-100/30" />
+            </div>
           )}
 
+          {/* Success */}
           {success && (
             <p className="rounded-xl bg-choco-800 px-3 py-2 text-xs text-green-400">
               ✅ {success}
