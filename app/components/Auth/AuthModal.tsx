@@ -38,9 +38,9 @@ function getFriendlyError(err: unknown, mode: Mode): string {
   }
 
   if (mode === "signup") {
-    if (status === 409 || status === 400)
+    if (status === 409)
       return "An account with this email already exists. Try logging in instead.";
-    if (status === 422)
+    if (status === 400 || status === 422)
       return "Your password must be at least 6 characters.";
   }
 

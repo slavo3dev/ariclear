@@ -6,7 +6,21 @@ export async function POST(req: Request) {
 
   const supabase = await supabaseAriClearServer();
 
-  const { error } = await supabase.auth.signUp({
+  // Check if the user already exists before attempting signup
+  const { data: existingUsers } = await supabase
+    .from("auth.users")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (existingUsers) {
+    return NextResponse.json(
+      { message: "An account with this email already exists. Try logging in instead." },
+      { status: 409 }
+    );
+  }
+
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -15,11 +29,15 @@ export async function POST(req: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ message: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({
-    success: true,
-    message: "Check your email to verify your account.",
-  });
+  if (data.user && data.user.identities?.length === 0) {
+    return NextResponse.json(
+      { message: "An account with this email already exists. Try logging in instead." },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({ success: true });
 }
