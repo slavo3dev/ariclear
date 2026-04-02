@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         console.log('No subscription found - creating default...');
         
         // Create default subscription
-        const { error: insertError } = await supabase
+        await supabase
           .from('user_subscriptions')
           .insert({
             user_id: user.id,
@@ -164,12 +164,7 @@ export async function POST(request: NextRequest) {
             websites_limit: 1
           });
 
-        console.log('Insert error:', insertError);
-        
-        // Use default values
-        const defaultSubscription = { tier: 'free', websites_limit: 1, trial_expires_at: null };
-        
-        // Check limit with default
+        // Count current websites against free limit
         const { count } = await supabase
           .from('user_websites')
           .select('*', { count: 'exact', head: true })
@@ -182,7 +177,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             { 
               error: 'Website limit reached',
-              message: `You've reached your limit of 1 website. Request a 60-day trial to track up to 5 websites!`,
+              errorCode: 'SCAN_LIMIT_REACHED',
+              message: `You've reached your limit of 1 free website. Upgrade to Pro to track more sites.`,
               limit: 1,
               current: currentCount,
               tier: 'free',
@@ -201,9 +197,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
               { 
                 error: 'Trial expired',
-                message: 'Your 60-day trial has expired. Contact us to upgrade and continue tracking websites.',
-                requiresUpgrade: true,
-                tier: 'trial_expired'
+                errorCode: 'TRIAL_EXPIRED',
+                message: 'Your 60-day trial has expired. Upgrade to Pro to continue tracking websites.',
+                limit: subscription.websites_limit,
+                tier: 'trial_expired',
+                requiresUpgrade: true
               },
               { status: 403 }
             );
@@ -224,10 +222,11 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             { 
               error: 'Website limit reached',
+              errorCode: 'SCAN_LIMIT_REACHED',
               message: `You've reached your limit of ${subscription.websites_limit} website${subscription.websites_limit > 1 ? 's' : ''}. ${
                 subscription.tier === 'free' 
-                  ? 'Request a 60-day trial to track up to 5 websites!' 
-                  : 'Contact us to upgrade your plan.'
+                  ? 'Upgrade to Pro to track more sites.' 
+                  : 'Contact us to expand your plan.'
               }`,
               limit: subscription.websites_limit,
               current: currentCount,
