@@ -21,6 +21,7 @@ type RequestData = {
   businessName: string;
   businessDescription: string;
   targetAudience: string;
+  websiteUrl?: string;
   platforms: PlatformData;
 };
 
@@ -38,11 +39,11 @@ type MetricAnalysis = {
 type HumanReadabilityAnalysis = {
   score: number;
   rating: ScoreRating;
-  fiveSecondTest: string;        // Would a distracted human "get it" in 5 seconds?
-  fifthGraderTest: string;       // Can a 5th grader explain what this business does?
-  jargonDetected: string[];      // Specific buzzwords/jargon found
-  valuePropositionClarity: string; // Is the core "why you" clear to a human?
-  emotionalResonance: string;    // Does it make a human FEEL something or care?
+  fiveSecondTest: string;
+  fifthGraderTest: string;
+  jargonDetected: string[];
+  valuePropositionClarity: string;
+  emotionalResonance: string;
   summary: string;
   recommendations: string;
 };
@@ -51,16 +52,29 @@ type AIReadabilityAnalysis = {
   score: number;
   rating: ScoreRating;
   entityExtraction: {
-    businessCategory: string | null;    // Can AI determine the category?
-    targetCustomer: string | null;      // Can AI identify who this is for?
-    coreService: string | null;         // Can AI extract the main service/product?
-    differentiator: string | null;      // Can AI find what makes this unique?
-    location: string | null;            // Can AI determine location (if relevant)?
-    priceSignal: string | null;         // Any pricing tier signals?
+    businessCategory: string | null;
+    targetCustomer: string | null;
+    coreService: string | null;
+    differentiator: string | null;
+    location: string | null;
+    priceSignal: string | null;
   };
-  structuredDataReadiness: string;     // Is the brand info structured for AI parsing?
-  searchIntentAlignment: string;       // Does the brand match what people actually search?
-  llmIndexability: string;             // How would an LLM summarize this brand?
+  structuredDataReadiness: string;
+  searchIntentAlignment: string;
+  llmIndexability: string;
+  summary: string;
+  recommendations: string;
+};
+
+type WebsiteMatchAnalysis = {
+  score: number;
+  rating: ScoreRating;
+  websiteScraped: boolean;
+  heroMessageMatch: string;       // Does website hero copy match the brand description?
+  audienceSignalMatch: string;    // Does website speak to the stated target audience?
+  brandVoiceConsistency: string;  // Is the voice/tone on the site consistent with brand claim?
+  missingOnWebsite: string[];     // Things claimed in description but absent from the site
+  websiteRedFlags: string[];      // Specific things on the site that contradict or weaken the brand
   summary: string;
   recommendations: string;
 };
@@ -74,17 +88,83 @@ type AnalysisReport = {
   contentConsistency: MetricAnalysis;
   humanReadability: HumanReadabilityAnalysis;
   aiReadability: AIReadabilityAnalysis;
+  websiteMatch: WebsiteMatchAnalysis;
   platformSpecific: Record<string, string>;
-  topThreeKillers: string[];           // Top 3 things actively hurting this brand
-  quickWins: string[];                 // Top 3 highest-ROI immediate fixes
+  topThreeKillers: string[];
+  quickWins: string[];
 };
+
+// ─── Website Scraper ──────────────────────────────────────────────────────────
+
+async function scrapeWebsite(url: string): Promise<string | null> {
+  try {
+    // Normalize URL
+    const normalized = url.startsWith("http") ? url : `https://${url}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(normalized, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; AriClear-BrandBot/1.0; +https://ariclear.com)",
+        Accept: "text/html",
+      },
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) return null;
+
+    const html = await res.text();
+
+    // Extract meaningful text — title, meta description, h1-h3, hero-ish paragraphs
+    const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ?? "";
+    const metaDesc =
+      html
+        .match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
+        ?.[1]
+        ?.trim() ?? "";
+    const ogDesc =
+      html
+        .match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
+        ?.[1]
+        ?.trim() ?? "";
+
+    // Strip scripts, styles, nav, footer, SVG
+    const stripped = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+      .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    // Take the first 3000 chars of visible text — enough for hero + above fold
+    const visibleText = stripped.slice(0, 3000);
+
+    return [
+      title ? `PAGE TITLE: ${title}` : "",
+      metaDesc ? `META DESCRIPTION: ${metaDesc}` : "",
+      ogDesc && ogDesc !== metaDesc ? `OG DESCRIPTION: ${ogDesc}` : "",
+      `VISIBLE TEXT (above fold):\n${visibleText}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  } catch {
+    return null;
+  }
+}
 
 // ─── Shape Validator ──────────────────────────────────────────────────────────
 
 function isReportShape(obj: any): obj is AnalysisReport {
   if (!obj || typeof obj !== "object") return false;
 
-  const hasScore = (o: any, key: string) =>
+  const hasMetric = (o: any, key: string) =>
     o[key] &&
     typeof o[key].score === "number" &&
     typeof o[key].rating === "string" &&
@@ -94,27 +174,27 @@ function isReportShape(obj: any): obj is AnalysisReport {
     typeof obj.overallScore === "number" &&
     typeof obj.severityLevel === "string" &&
     typeof obj.executiveSummary === "string" &&
-    hasScore(obj, "brandClarity") &&
+    hasMetric(obj, "brandClarity") &&
     Array.isArray(obj.brandClarity.insights) &&
     Array.isArray(obj.brandClarity.redFlags) &&
-    typeof obj.brandClarity.recommendations === "string" &&
-    hasScore(obj, "engagementQuality") &&
+    hasMetric(obj, "engagementQuality") &&
     Array.isArray(obj.engagementQuality.insights) &&
     Array.isArray(obj.engagementQuality.redFlags) &&
-    typeof obj.engagementQuality.recommendations === "string" &&
-    hasScore(obj, "contentConsistency") &&
+    hasMetric(obj, "contentConsistency") &&
     Array.isArray(obj.contentConsistency.insights) &&
     Array.isArray(obj.contentConsistency.redFlags) &&
-    typeof obj.contentConsistency.recommendations === "string" &&
     obj.humanReadability &&
     typeof obj.humanReadability.score === "number" &&
     typeof obj.humanReadability.fiveSecondTest === "string" &&
-    typeof obj.humanReadability.fifthGraderTest === "string" &&
     Array.isArray(obj.humanReadability.jargonDetected) &&
     obj.aiReadability &&
     typeof obj.aiReadability.score === "number" &&
     obj.aiReadability.entityExtraction &&
-    typeof obj.aiReadability.llmIndexability === "string" &&
+    obj.websiteMatch &&
+    typeof obj.websiteMatch.score === "number" &&
+    typeof obj.websiteMatch.websiteScraped === "boolean" &&
+    Array.isArray(obj.websiteMatch.missingOnWebsite) &&
+    Array.isArray(obj.websiteMatch.websiteRedFlags) &&
     obj.platformSpecific &&
     typeof obj.platformSpecific === "object" &&
     Array.isArray(obj.topThreeKillers) &&
@@ -130,12 +210,39 @@ function buildSystemPrompt(
   businessName: string,
   businessDescription: string,
   targetAudience: string,
-  platformList: string
+  platformList: string,
+  websiteContent: string | null,
+  websiteUrl: string | undefined
 ): string {
+  const websiteSection = websiteContent
+    ? `
+═══════════════════════════════════════════════════════
+WEBSITE CONTENT (scraped from ${websiteUrl})
+═══════════════════════════════════════════════════════
+${websiteContent}
+
+CRITICAL: Cross-reference everything in the brand description against this actual website content.
+If the website says something different from the description — that IS a red flag.
+If claims in the description don't appear anywhere on the site — that IS a gap.
+`
+    : websiteUrl
+    ? `
+═══════════════════════════════════════════════════════
+WEBSITE: ${websiteUrl} (could not be scraped — inaccessible or timed out)
+═══════════════════════════════════════════════════════
+Set websiteMatch.websiteScraped = false and note the site was unreachable.
+`
+    : `
+═══════════════════════════════════════════════════════
+WEBSITE: None provided
+═══════════════════════════════════════════════════════
+Set websiteMatch.websiteScraped = false. Note the absence of a website as a significant gap.
+`;
+
   return `
 You are AriClear's core brand analysis engine — the most rigorous, unsparing brand evaluation system available to small businesses and founders. Your entire value comes from being HONEST, SPECIFIC, and BRUTALLY ACCURATE. Inflated scores destroy trust and harm the user.
 
-You are analyzing a brand submission for AriClear, a web app that helps founders and small businesses understand if their brand is actually clear to real humans AND to AI systems (LLMs, search engines, recommendation systems).
+AriClear helps founders and small businesses understand if their brand is clear to real humans AND to AI systems. You are their main feature. Every score you give will be shown directly to a paying user. Make it count.
 
 ═══════════════════════════════════════════════════════
 BUSINESS BEING ANALYZED
@@ -144,212 +251,197 @@ Name: ${businessName}
 Description: ${businessDescription}
 Target Audience: ${targetAudience}
 Active Platforms: ${platformList}
+${websiteSection}
 
 ═══════════════════════════════════════════════════════
-SCORING PHILOSOPHY — INTERNALIZE THIS
+SCORING PHILOSOPHY — INTERNALIZE THIS COMPLETELY
 ═══════════════════════════════════════════════════════
 
-Reality check: 80% of small businesses score below 55. A score of 70+ should feel HARD to earn.
+Reality check: 80% of small businesses score below 55. A 70+ score should feel hard to earn.
+Do NOT give comfort scores. Low scores with specific feedback are MORE valuable than high scores.
 
 SCORE BANDS:
-• 0–39   → Critical: Brand is actively confusing or invisible. Needs full rethinking.
-• 40–54  → Weak: Significant gaps. Blends into background noise.
-• 55–69  → Average: Mediocre. Some structure but missing differentiation.
-• 70–79  → Good: Solid foundation, notable gaps still exist.
+• 0–39   → Critical: Actively confusing or invisible. Full rethink needed.
+• 40–54  → Weak: Significant gaps. Blends into noise.
+• 55–69  → Average: Some structure, missing differentiation.
+• 70–79  → Good: Solid but notable gaps remain.
 • 80–89  → Strong: Clear, differentiated, strategically coherent.
-• 90–100 → Excellent: Rare. Reserved for exceptionally clear, differentiated brands.
+• 90–100 → Excellent: Rare. Reserved for exceptional brands.
 
 DEDUCT POINTS AGGRESSIVELY FOR:
-- Generic language ("innovative", "seamless", "passionate", "solutions", "leverage", "world-class", "cutting-edge", "empower", "transform", "holistic")
-- Missing answer to: WHAT do you do / WHO is it for / WHY choose you
-- No concrete differentiator from competitors
-- Vague or missing target audience
-- Platform presence without strategic purpose
-- Description that reads like a mission statement instead of a value proposition
-
-RATING CALIBRATION:
-• "Excellent" (80-100): Crystal-clear value prop + genuine differentiation + strategic depth
-• "Good" (60-79): Solid but generic in 1-2 key areas, needs refinement
-• "Needs Work" (40-59): Most businesses. Unclear, generic, or unfocused
-• "Critical" (0-39): Actively harmful to the brand — confusing, empty, or misleading
+- Generic language: "innovative", "seamless", "passionate", "solutions", "leverage",
+  "world-class", "cutting-edge", "empower", "transform", "holistic", "dynamic", "synergy"
+- Missing WHO / WHAT / WHY in the value proposition
+- No concrete differentiator — if it could describe 100 competitors, deduct heavily
+- Vague or overly broad target audience
+- Website content that contradicts or ignores what's in the description
+- Platform presence without strategic intent
+- Description that reads like a mission statement, not a value proposition
 
 ═══════════════════════════════════════════════════════
-WHAT TO EVALUATE
+METRICS TO EVALUATE (6 total)
 ═══════════════════════════════════════════════════════
 
 1. BRAND CLARITY
-   The 5-second rule: Would someone IMMEDIATELY understand what this business does, for whom, and why to care?
-   
-   Deduct heavily if:
-   - The description doesn't answer WHO it's for specifically
-   - The name gives zero clue about the category
-   - The description could apply to 1,000 other businesses
-   - There is no concrete "instead of [alternative]" positioning
-   - Uses industry jargon that outsiders won't understand
-   - The value prop is buried under fluff
+   5-second rule: Would someone IMMEDIATELY understand what this is, for whom, and why it matters?
+   Deduct if: description is generic, value prop buried, name gives no category signal,
+   no "instead of X" positioning, relies on jargon.
 
-2. ENGAGEMENT QUALITY
-   Would the TARGET AUDIENCE actually care? Would they stop scrolling?
-   
-   Deduct heavily if:
-   - No emotional hook or clear "this is for me" signal
-   - The brand feels corporate when it should feel human (or vice versa for B2B)
-   - Nothing makes it MEMORABLE or different from a dozen competitors
-   - The audience is too broad ("everyone" or "businesses")
-   - The tone doesn't match what the audience actually responds to
-   - No evidence of understanding the audience's specific pain points
+2. ENGAGEMENT QUALITY  
+   Would the target audience ACTUALLY stop and care?
+   Deduct if: no emotional hook, brand feels corporate when it should be human (or vice versa),
+   nothing memorable, audience too broad, tone mismatch, no specific pain point addressed.
 
 3. CONTENT CONSISTENCY
-   Is there evidence of a coherent brand strategy?
-   
-   Deduct heavily if:
-   - The description suggests scattered platform presence with no clear angle
-   - No consistent voice or theme is detectable
-   - Platform choices don't match the target audience's habits
-   - Content would likely be random because there's no clear POV
-   - Mixed signals between the name, description, and platforms
+   Is there a coherent brand strategy visible?
+   Deduct if: scattered platform presence, no consistent POV or voice, platform choices
+   don't match where the audience actually is, mixed signals across name/description/platforms.
 
-4. HUMAN READABILITY (NEW — Core AriClear metric)
-   This tests whether a REAL HUMAN — a distracted, skeptical prospect — can quickly understand and trust this brand.
-   
-   Run these mental tests:
-   a) 5-Second Test: Imagine showing someone this brand for 5 seconds. What would they remember? What would confuse them?
-   b) 5th Grader Test: Could a 10-year-old explain what this business does to their parents?
-   c) Jargon Scan: List every buzzword, corporate phrase, or vague term that adds no meaning
-   d) Value Prop Clarity: Is the specific benefit (not feature) of this brand immediately clear?
-   e) Emotional Resonance: Does this make a human feel ANYTHING — curiosity, relief, recognition, excitement?
+4. HUMAN READABILITY
+   Can a DISTRACTED, SKEPTICAL human quickly understand and trust this brand?
+   Run these tests:
+   a) 5-Second Test — what does a person grasp in 5 seconds? What stays confusing?
+   b) 5th Grader Test — could a 10-year-old explain this to their parents?
+   c) Jargon Scan — list every buzzword or vague corporate phrase
+   d) Value Prop Clarity — is the BENEFIT (not feature) instantly clear?
+   e) Emotional Resonance — does this evoke curiosity, relief, excitement, or recognition?
 
-5. AI READABILITY (NEW — Core AriClear metric)
-   Modern brands need to be parseable by AI systems: LLMs, search engines, recommendation algorithms, voice assistants, ChatGPT, Perplexity, etc.
+5. AI READABILITY
+   Can AI systems (LLMs, search engines, Perplexity, voice assistants) accurately parse this brand?
+   Extract: business category, target customer, core service, differentiator, location, price signal.
+   Evaluate: structured data readiness, search intent alignment, LLM indexability.
+
+6. WEBSITE MATCH (if website was provided/scraped)
+   Does the ACTUAL website match what the brand claims to be?
+   This is where most brands fail silently.
    
-   Test entity extraction:
-   a) Business Category: What exact category would an AI file this under?
-   b) Target Customer: Who would an AI say this serves? (Be specific or mark null)
-   c) Core Service/Product: What exactly does this business sell/offer?
-   d) Differentiator: What unique claim can an AI extract?
-   e) Location: For local businesses, is location extractable?
-   f) Price Signal: Can an AI infer the pricing tier (budget/mid/premium)?
+   Cross-reference ruthlessly:
+   - Does the hero message actually communicate the stated value proposition?
+   - Does the site speak to the stated target audience by language, tone, examples?
+   - Are the claims in the description actually present on the website?
+   - Is there anything on the website that CONTRADICTS or WEAKENS the brand claim?
+   - What's MISSING from the site that a first-time visitor would need to trust the brand?
    
-   Evaluate:
-   - Structured Data Readiness: Is the information organized so AI can parse it cleanly?
-   - Search Intent Alignment: Does the brand language match what the target audience actually types into search?
-   - LLM Indexability: If someone asked ChatGPT "recommend a [category] business," how would this one be described? Would it even be extractable?
+   If no website was provided: score = 20, note it as a major gap. Having no website
+   in 2025 is a significant brand signal on its own.
+   If website couldn't be scraped: score = 30, note the accessibility issue.
 
 ═══════════════════════════════════════════════════════
 OUTPUT FORMAT — STRICT JSON ONLY
 ═══════════════════════════════════════════════════════
 
-Return ONLY valid JSON. No markdown, no backticks, no preamble, no explanation outside the JSON.
+Return ONLY valid JSON. No markdown, no backticks, no preamble.
 
 {
-  "overallScore": number (0-100, weighted average of all 5 metrics),
+  "overallScore": number (0-100, weighted average across all 6 metrics — websiteMatch counts fully),
   "severityLevel": "Critical" | "Weak" | "Average" | "Strong" | "Excellent",
-  "executiveSummary": "3-4 sentences. Lead with the single biggest problem. Be specific about what's broken and why it costs them customers. End with the core shift needed.",
+  "executiveSummary": "3-4 sentences. Lead with the single biggest problem. Be specific. End with the core shift needed.",
 
   "brandClarity": {
-    "score": number (0-100),
+    "score": number,
     "rating": "Excellent" | "Good" | "Needs Work" | "Critical",
-    "summary": "2-3 sentences. Be honest about clarity failures. Quote specific phrases that are vague.",
-    "insights": [
-      "Specific thing that would make a prospect confused or uncertain",
-      "Specific gap in the value proposition",
-      "Specific missing information a customer needs"
-    ],
-    "recommendations": "2-3 sentences with SPECIFIC rewrites or fixes. Example: 'Replace [vague phrase] with [specific alternative].'",
-    "redFlags": ["List of specific phrases or gaps that are actively hurting clarity"]
+    "summary": "2-3 honest sentences. Quote specific vague phrases found.",
+    "insights": ["specific confusion point", "specific value prop gap", "specific missing info a customer needs"],
+    "recommendations": "2-3 sentences with SPECIFIC rewrites, not generic advice.",
+    "redFlags": ["specific phrase or gap actively hurting clarity"]
   },
 
   "engagementQuality": {
-    "score": number (0-100),
+    "score": number,
     "rating": "Excellent" | "Good" | "Needs Work" | "Critical",
-    "summary": "2-3 sentences honestly assessing differentiation and audience fit.",
-    "insights": [
-      "Why the target audience would scroll past without engaging",
-      "Specific competitor advantage this brand is leaving on the table",
-      "What emotional or rational hook is missing"
-    ],
-    "recommendations": "2-3 sentences with SPECIFIC engagement improvements, not generic tips.",
-    "redFlags": ["Specific things that would repel the target audience"]
+    "summary": "2-3 honest sentences on differentiation and audience fit.",
+    "insights": ["why audience scrolls past", "competitor advantage being left on table", "missing hook"],
+    "recommendations": "2-3 SPECIFIC engagement improvements.",
+    "redFlags": ["specific things that repel the target audience"]
   },
 
   "contentConsistency": {
-    "score": number (0-100),
+    "score": number,
     "rating": "Excellent" | "Good" | "Needs Work" | "Critical",
-    "summary": "2-3 sentences on strategic coherence — or lack of it.",
-    "insights": [
-      "Specific strategic gap or fragmentation risk",
-      "What would make content feel random or off-brand",
-      "Platform-strategy mismatch if any"
-    ],
-    "recommendations": "2-3 sentences with SPECIFIC strategic direction, not 'be consistent'.",
-    "redFlags": ["Specific consistency risks"]
+    "summary": "2-3 honest sentences on strategic coherence.",
+    "insights": ["specific strategic gap", "what makes content feel random", "platform-strategy mismatch"],
+    "recommendations": "2-3 SPECIFIC strategic direction sentences.",
+    "redFlags": ["specific consistency risks"]
   },
 
   "humanReadability": {
-    "score": number (0-100),
+    "score": number,
     "rating": "Excellent" | "Good" | "Needs Work" | "Critical",
-    "fiveSecondTest": "Describe exactly what a person sees/understands in 5 seconds and what remains unclear.",
-    "fifthGraderTest": "Write what a 10-year-old would say this business does, or explain why they couldn't.",
-    "jargonDetected": ["Every buzzword, vague corporate phrase, or meaningless term found"],
+    "fiveSecondTest": "What a person understands in 5 seconds and what stays unclear.",
+    "fifthGraderTest": "What a 10-year-old would say this business does, or why they couldn't explain it.",
+    "jargonDetected": ["every buzzword and vague corporate phrase found"],
     "valuePropositionClarity": "Is the benefit (not feature) clear to a first-time visitor? Explain specifically.",
-    "emotionalResonance": "Does this brand evoke ANY emotion or recognition in the target audience? What's missing?",
-    "summary": "2-3 sentences. Be specific about human comprehension failures.",
-    "recommendations": "SPECIFIC fixes to make this immediately legible to a distracted human."
+    "emotionalResonance": "Does this evoke any emotion or recognition in the target audience? What's missing?",
+    "summary": "2-3 sentences on human comprehension failures.",
+    "recommendations": "SPECIFIC fixes to make this legible to a distracted human."
   },
 
   "aiReadability": {
-    "score": number (0-100),
+    "score": number,
     "rating": "Excellent" | "Good" | "Needs Work" | "Critical",
     "entityExtraction": {
-      "businessCategory": "Exact category string or null if ambiguous",
-      "targetCustomer": "Specific customer description or null if unclear",
-      "coreService": "Exact service/product or null if unclear",
-      "differentiator": "Unique claim an AI can extract, or null if none found",
-      "location": "Location if relevant/extractable, or null",
+      "businessCategory": "exact category string or null",
+      "targetCustomer": "specific customer description or null",
+      "coreService": "exact service/product or null",
+      "differentiator": "unique extractable claim or null",
+      "location": "location if relevant or null",
       "priceSignal": "Budget / Mid-range / Premium / Unknown"
     },
-    "structuredDataReadiness": "Can an AI parse this brand cleanly? What would it fail on?",
-    "searchIntentAlignment": "Does the brand language match actual search queries? What terms are they missing?",
-    "llmIndexability": "If someone asked an AI assistant to recommend this type of business, how would this brand be described — or would it be skipped entirely?",
+    "structuredDataReadiness": "Can an AI parse this cleanly? What would it fail on?",
+    "searchIntentAlignment": "Does brand language match actual search queries? What terms are missing?",
+    "llmIndexability": "How would an AI assistant describe this brand if asked to recommend it? Would it be skipped?",
     "summary": "2-3 sentences on AI/machine readability failures.",
-    "recommendations": "SPECIFIC fixes to improve AI discoverability and extractability."
+    "recommendations": "SPECIFIC fixes to improve AI discoverability."
+  },
+
+  "websiteMatch": {
+    "score": number,
+    "rating": "Excellent" | "Good" | "Needs Work" | "Critical",
+    "websiteScraped": boolean,
+    "heroMessageMatch": "Does the website hero/above-fold content match the stated brand description? Quote actual website text found or missing.",
+    "audienceSignalMatch": "Does the website visibly speak to the stated target audience? Cite specific evidence or gaps.",
+    "brandVoiceConsistency": "Is the website tone/voice consistent with the brand description? Flag any mismatch.",
+    "missingOnWebsite": ["claim from description absent from website", "another gap"],
+    "websiteRedFlags": ["specific on-site issue that contradicts or weakens brand claim"],
+    "summary": "2-3 sentences. Be specific — quote website text when possible.",
+    "recommendations": "SPECIFIC website fixes to close the gap between claimed brand and live brand."
   },
 
   "platformSpecific": {
-    "platformName": "The single most critical risk or mistake for THIS business on THIS specific platform."
+    "platformName": "The single biggest risk or mistake for THIS business on THIS specific platform."
   },
 
   "topThreeKillers": [
-    "The #1 thing actively costing this brand customers right now",
-    "The #2 structural problem that prevents growth",
-    "The #3 gap that competitors will exploit"
+    "The #1 thing actively costing this brand customers right now (be specific)",
+    "The #2 structural problem preventing growth",
+    "The #3 gap competitors will exploit"
   ],
 
   "quickWins": [
-    "Highest-ROI fix that could be done today (be specific)",
-    "Second fastest improvement with clear instructions",
-    "Third quick win with measurable expected impact"
+    "Highest-ROI fix doable today — be specific about what to change and to what",
+    "Second fastest improvement with exact instructions",
+    "Third quick win with expected impact"
   ]
 }
 
 ABSOLUTE RULES:
-1. Never use generic advice ("be authentic", "engage your audience", "post consistently")
-2. Every insight must reference THIS SPECIFIC business — quote their description when helpful
-3. Every recommendation must be actionable with no ambiguity
-4. Null values in entityExtraction are honest signals — use them when warranted
-5. topThreeKillers and quickWins must each have exactly 3 items
-6. If the description is copy-paste generic, say so explicitly
-7. Lower scores are more useful than comfortable ones
-8. The humanReadability and aiReadability scores carry equal weight to the other three metrics
+1. Zero generic advice. Every sentence must reference THIS specific business.
+2. Quote their actual description or website text when calling something out.
+3. Null values in entityExtraction are honest — use them when nothing is extractable.
+4. topThreeKillers and quickWins must have EXACTLY 3 items each.
+5. websiteMatch.websiteScraped = true only if you actually received scraped content above.
+6. Lower scores are more useful than comfortable ones.
+7. If the description is copy-paste generic, say so by name.
+8. The overall score must honestly reflect all 6 metrics including websiteMatch.
 `.trim();
 }
 
-// ─── Route Handler ─────────────────────────────────────────────────────────────
+// ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   try {
     const data = (await req.json()) as RequestData;
-    const { businessName, businessDescription, targetAudience, platforms } = data;
+    const { businessName, businessDescription, targetAudience, websiteUrl, platforms } = data;
 
     // ── Validation ──────────────────────────────────────────────────────────
     if (!businessName?.trim() || !businessDescription?.trim() || !targetAudience?.trim()) {
@@ -362,7 +454,7 @@ export async function POST(req: Request) {
     if (businessDescription.trim().length < 30) {
       return NextResponse.json(
         {
-          error: "Business description is too short. Provide at least 30 characters for meaningful analysis.",
+          error: "Business description is too short. Provide at least 30 characters for a meaningful analysis.",
           errorCode: "DESCRIPTION_TOO_SHORT",
         },
         { status: 400 }
@@ -388,14 +480,24 @@ export async function POST(req: Request) {
 
     const platformList = activePlatforms.length
       ? activePlatforms.map(([key]) => key).join(", ")
-      : "No platforms provided — general brand analysis only";
+      : "No platforms provided";
+
+    // ── Website Scrape ──────────────────────────────────────────────────────
+    let websiteContent: string | null = null;
+    if (websiteUrl?.trim()) {
+      console.log("🌐 Scraping website:", websiteUrl);
+      websiteContent = await scrapeWebsite(websiteUrl.trim());
+      console.log(websiteContent ? "✅ Website scraped successfully" : "⚠️ Website scrape failed");
+    }
 
     // ── Claude API Call ─────────────────────────────────────────────────────
     const systemPrompt = buildSystemPrompt(
       businessName,
       businessDescription,
       targetAudience,
-      platformList
+      platformList,
+      websiteContent,
+      websiteUrl?.trim()
     );
 
     const userMessage = JSON.stringify(
@@ -403,10 +505,9 @@ export async function POST(req: Request) {
         businessName,
         businessDescription,
         targetAudience,
-        activePlatforms: activePlatforms.map(([platform, handle]) => ({
-          platform,
-          handle,
-        })),
+        websiteUrl: websiteUrl?.trim() || null,
+        websiteScrapedSuccessfully: !!websiteContent,
+        activePlatforms: activePlatforms.map(([platform, handle]) => ({ platform, handle })),
       },
       null,
       2
@@ -414,15 +515,10 @@ export async function POST(req: Request) {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      temperature: 0.1, // Very low — we want consistent, analytical output
+      max_tokens: 2500,
+      temperature: 0.1,
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
+      messages: [{ role: "user", content: userMessage }],
     });
 
     console.log("✅ Claude response received");
@@ -435,16 +531,12 @@ export async function POST(req: Request) {
       .trim();
 
     if (!outputText) {
-      return NextResponse.json(
-        { error: "Empty response from analysis engine." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Empty response from analysis engine." }, { status: 500 });
     }
 
     // ── Parse JSON ──────────────────────────────────────────────────────────
     let report: any;
     try {
-      // Strip any accidental markdown fences
       const cleaned = outputText
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
@@ -452,7 +544,7 @@ export async function POST(req: Request) {
         .trim();
       report = JSON.parse(cleaned);
     } catch {
-      console.error("Analysis engine returned invalid JSON:", outputText.slice(0, 500));
+      console.error("Invalid JSON from analysis engine:", outputText.slice(0, 500));
       return NextResponse.json(
         { error: "Analysis engine returned malformed data. Please try again." },
         { status: 500 }
@@ -469,89 +561,64 @@ export async function POST(req: Request) {
     }
 
     // ── Score Sanity Check ──────────────────────────────────────────────────
-    // Ensure overallScore is consistent with component scores
     const componentScores = [
       report.brandClarity.score,
       report.engagementQuality.score,
       report.contentConsistency.score,
       report.humanReadability.score,
       report.aiReadability.score,
+      report.websiteMatch.score,
     ];
     const computedAverage = Math.round(
       componentScores.reduce((a, b) => a + b, 0) / componentScores.length
     );
-    // Allow a small variance; if it's off by more than 5, recalculate
     if (Math.abs(report.overallScore - computedAverage) > 5) {
       report.overallScore = computedAverage;
     }
 
-    // ── Severity Level Consistency ──────────────────────────────────────────
+    // ── Severity Consistency ────────────────────────────────────────────────
     const score = report.overallScore;
-    const expectedSeverity =
+    report.severityLevel =
       score >= 90 ? "Excellent" :
       score >= 80 ? "Strong" :
       score >= 70 ? "Average" :
       score >= 55 ? "Weak" :
       "Critical";
-    report.severityLevel = expectedSeverity;
 
-    console.log(
-      `🎉 Analysis complete — ${businessName}: ${report.overallScore}/100 (${report.severityLevel})`
-    );
+    console.log(`🎉 Analysis complete — ${businessName}: ${report.overallScore}/100 (${report.severityLevel})`);
 
     return NextResponse.json(report);
 
   } catch (err: any) {
     console.error("❌ Brand analysis error:", err);
 
-    // ── Anthropic-specific errors ───────────────────────────────────────────
     if (err?.status === 429 || err?.error?.type === "rate_limit_error") {
       return NextResponse.json(
-        {
-          error: "Analysis engine is temporarily busy. Please wait a moment and try again.",
-          errorCode: "RATE_LIMITED",
-          rateLimited: true,
-        },
+        { error: "Analysis engine is temporarily busy. Please wait a moment and try again.", errorCode: "RATE_LIMITED", rateLimited: true },
         { status: 429 }
       );
     }
-
     if (err?.status === 401 || err?.error?.type === "authentication_error") {
       return NextResponse.json(
-        {
-          error: "Analysis service configuration error. Please contact support.",
-          errorCode: "AUTH_ERROR",
-        },
+        { error: "Analysis service configuration error. Please contact support.", errorCode: "AUTH_ERROR" },
         { status: 500 }
       );
     }
-
     if (err?.status === 529 || err?.error?.type === "overloaded_error") {
       return NextResponse.json(
-        {
-          error: "Analysis engine is overloaded. Please try again in a few seconds.",
-          errorCode: "OVERLOADED",
-          retryable: true,
-        },
+        { error: "Analysis engine is overloaded. Please try again in a few seconds.", errorCode: "OVERLOADED", retryable: true },
         { status: 503 }
       );
     }
-
     if (err?.status) {
       return NextResponse.json(
-        {
-          error: `Analysis service error (${err.status}): ${err.message ?? "Unknown error"}`,
-          errorCode: "API_ERROR",
-        },
+        { error: `Analysis service error (${err.status}): ${err.message ?? "Unknown error"}`, errorCode: "API_ERROR" },
         { status: err.status }
       );
     }
 
     return NextResponse.json(
-      {
-        error: "Unexpected error while analyzing brand awareness. Please try again.",
-        errorCode: "SERVER_ERROR",
-      },
+      { error: "Unexpected error while analyzing brand awareness. Please try again.", errorCode: "SERVER_ERROR" },
       { status: 500 }
     );
   }
