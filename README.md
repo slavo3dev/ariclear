@@ -305,4 +305,4 @@ pnpm type-check   # Run TypeScript checks
 
 ---
 
-_Last updated: April 2026_
+**Last updated: April 2026\_**
