@@ -61,12 +61,16 @@ export function HeroSection() {
 						{[
 							{ stat: '8s', label: 'avg. human attention span' },
 							{
+								stat: '2 scores',
+								label: 'human + AI clarity, one scan',
+							},
+							{
 								stat: '55%',
 								label: 'of visitors leave in under 15s',
 							},
 							{
-								stat: '2 scores',
-								label: 'human + AI clarity, one scan',
+								stat: '70%+',
+								label: 'of AI answers skip uncited sites',
 							},
 						].map(({ stat, label }) => (
 							<div
