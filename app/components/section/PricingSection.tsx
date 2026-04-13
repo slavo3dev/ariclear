@@ -10,8 +10,9 @@ const plans = [
 		name: 'Starter',
 		badge: 'Free forever',
 		price: 'Free',
-		priceSub: null,
 		yearlyPrice: null,
+		monthlyEquiv: null,
+		monthlyPrice: null,
 		description:
 			'Run your first clarity scan and see what visitors actually understand.',
 		features: [
@@ -58,8 +59,8 @@ const plans = [
 		id: 'pro',
 		name: 'Pro',
 		badge: 'Most popular',
-		price: '$149',
-		priceSub: 'per year · ~$12.50/mo',
+		yearlyPrice: '$149',
+		monthlyEquiv: '$12.50',
 		monthlyPrice: '$17',
 		description:
 			'For founders and teams actively improving their messaging.',
@@ -111,8 +112,8 @@ const plans = [
 		id: 'expert',
 		name: 'Expert',
 		badge: 'For agencies & teams',
-		price: '$499',
-		priceSub: 'per year · ~$41/mo',
+		yearlyPrice: '$499',
+		monthlyEquiv: '$41',
 		monthlyPrice: '$55',
 		description:
 			'More sites, more sessions — for agencies and serious teams.',
@@ -187,19 +188,6 @@ export function PricingSection() {
 		}
 	};
 
-	const getDisplayPrice = (plan: (typeof plans)[0]) => {
-		if (plan.tier === 'free') return 'Free';
-		if (billing === 'monthly' && plan.monthlyPrice)
-			return plan.monthlyPrice;
-		return plan.price;
-	};
-
-	const getPriceSub = (plan: (typeof plans)[0]) => {
-		if (plan.tier === 'free') return null;
-		if (billing === 'monthly') return 'per month · billed monthly';
-		return plan.priceSub;
-	};
-
 	return (
 		<section className='py-24 bg-white' id='pricing'>
 			<div className='mx-auto max-w-6xl px-4 sm:px-6 lg:px-8'>
@@ -219,44 +207,47 @@ export function PricingSection() {
 				</div>
 
 				{/* Billing toggle */}
-				<div className='flex items-center justify-center gap-3 mb-12'>
-					<button
-						onClick={() => setBilling('monthly')}
-						className={`text-sm font-medium transition-colors ${
-							billing === 'monthly'
-								? 'text-choco-900'
-								: 'text-choco-400'
-						}`}>
-						Monthly
-					</button>
-					<button
-						onClick={() =>
-							setBilling(
-								billing === 'yearly' ? 'monthly' : 'yearly',
-							)
-						}
-						className='relative w-12 h-6 rounded-full bg-choco-900 transition-colors focus:outline-none'
-						aria-label='Toggle billing cycle'>
+				<div className='flex flex-col items-center gap-3 mb-12'>
+					<div className='relative inline-flex items-center rounded-full bg-choco-100 p-1'>
+						{/* Sliding highlight — always exactly half the pill width */}
 						<span
-							className={`absolute top-1 w-4 h-4 rounded-full bg-amber-400 shadow transition-transform duration-200 ${
-								billing === 'yearly'
-									? 'translate-x-7'
-									: 'translate-x-1'
+							aria-hidden
+							className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-choco-900 transition-transform duration-300 ease-in-out ${
+								billing === 'monthly'
+									? 'translate-x-0 left-1'
+									: 'translate-x-full left-1'
 							}`}
 						/>
-					</button>
-					<button
-						onClick={() => setBilling('yearly')}
-						className={`text-sm font-medium transition-colors ${
+						<button
+							onClick={() => setBilling('monthly')}
+							className={`relative z-10 w-28 py-2 rounded-full text-sm font-semibold text-center transition-colors duration-200 ${
+								billing === 'monthly'
+									? 'text-cream-50'
+									: 'text-choco-600 hover:text-choco-900'
+							}`}>
+							Monthly
+						</button>
+						<button
+							onClick={() => setBilling('yearly')}
+							className={`relative z-10 w-28 py-2 rounded-full text-sm font-semibold text-center transition-colors duration-200 ${
+								billing === 'yearly'
+									? 'text-cream-50'
+									: 'text-choco-600 hover:text-choco-900'
+							}`}>
+							Yearly
+						</button>
+					</div>
+					{/* Save badge sits below, always visible */}
+					<span
+						className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full transition-all duration-200 ${
 							billing === 'yearly'
-								? 'text-choco-900'
-								: 'text-choco-400'
+								? 'bg-amber-400 text-choco-900'
+								: 'bg-choco-100 text-choco-400'
 						}`}>
-						Yearly
-						<span className='ml-2 inline-block rounded-full bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5'>
-							Save ~15%
-						</span>
-					</button>
+						{billing === 'yearly'
+							? '✓ Saving ~15% with yearly'
+							: 'Switch to yearly and save ~15%'}
+					</span>
 				</div>
 
 				{/* Cards */}
@@ -264,6 +255,12 @@ export function PricingSection() {
 					{plans.map((plan) => {
 						const isPopular = plan.id === 'pro';
 						const isFree = plan.tier === 'free';
+
+						// Always show yearly price — monthly equiv shown in brackets
+						const displayPrice = isFree
+							? 'Free'
+							: plan.yearlyPrice!;
+						const priceCaption = isFree ? null : `per year`;
 
 						return (
 							<div
@@ -309,30 +306,34 @@ export function PricingSection() {
 
 								{/* Price */}
 								<div className='mb-8'>
-									<div className='flex items-baseline gap-2'>
+									<div className='flex items-baseline gap-3 flex-wrap'>
 										<span
 											className={`text-5xl font-bold tracking-tight ${
 												isPopular
 													? 'text-cream-50'
 													: 'text-choco-900'
 											}`}>
-											{getDisplayPrice(plan)}
+											{displayPrice}
 										</span>
-										{getPriceSub(plan) && (
+										{!isFree && (
 											<span
-												className={`text-sm ${
+												className={`text-base font-medium ${
 													isPopular
-														? 'text-white/60'
-														: 'text-choco-500'
+														? 'text-white/50'
+														: 'text-choco-400'
 												}`}>
-												{getPriceSub(plan)}
+												(~{plan.monthlyEquiv}/mo)
 											</span>
 										)}
 									</div>
-									{billing === 'yearly' && !isFree && (
+									{priceCaption && (
 										<p
-											className={`text-xs mt-1 ${isPopular ? 'text-white/50' : 'text-choco-400'}`}>
-											Billed annually
+											className={`text-sm mt-1 ${
+												isPopular
+													? 'text-white/60'
+													: 'text-choco-500'
+											}`}>
+											{priceCaption}
 										</p>
 									)}
 								</div>
@@ -422,7 +423,7 @@ export function PricingSection() {
 				<p className='text-center text-sm text-choco-500 mt-8'>
 					Questions?{' '}
 					<a
-						href='mailto:support@ariclear.com'
+						href='mailto:slavo@slavo.io'
 						className='font-semibold text-choco-800 underline hover:text-choco-600 transition-colors'>
 						Email us
 					</a>{' '}
