@@ -1,25 +1,31 @@
 // app/api/ask-ari/comment/route.ts
-//
-// Handles follow-up comments from users on their own questions.
-// Session is read from cookies server-side so RLS passes correctly.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
+function getUrl() {
+	return (process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL ?? '').replace(
+		/\/$/,
+		'',
+	);
+}
+
 async function getServerClient() {
 	const cookieStore = await cookies();
 	return createServerClient(
-		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!,
+		getUrl(),
 		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_ANON_KEY!,
-		{
-			cookies: {
-				get(name: string) {
-					return cookieStore.get(name)?.value;
-				},
-			},
-		},
+		{ cookies: { get: (name) => cookieStore.get(name)?.value } },
 	);
+}
+
+function extractMessage(err: unknown): string {
+	if (err instanceof Error) return err.message;
+	if (typeof err === 'object' && err !== null && 'message' in err) {
+		return String((err as { message: unknown }).message);
+	}
+	return JSON.stringify(err);
 }
 
 export async function POST(req: NextRequest) {
@@ -30,7 +36,6 @@ export async function POST(req: NextRequest) {
 			data: { user },
 			error: authError,
 		} = await serverClient.auth.getUser();
-
 		if (authError || !user) {
 			return NextResponse.json(
 				{ error: 'Unauthorized' },
@@ -38,8 +43,7 @@ export async function POST(req: NextRequest) {
 			);
 		}
 
-		const body = await req.json();
-		const { question_id, author_name, content } = body as {
+		const { question_id, author_name, content } = (await req.json()) as {
 			question_id?: string;
 			author_name?: string;
 			content?: string;
@@ -64,12 +68,18 @@ export async function POST(req: NextRequest) {
 			.select()
 			.single();
 
-		if (insertError) throw insertError;
+		if (insertError) {
+			console.error(
+				'[comment] insert error:',
+				JSON.stringify(insertError, null, 2),
+			);
+			throw insertError;
+		}
 
 		return NextResponse.json({ comment: data }, { status: 201 });
 	} catch (err: unknown) {
-		const message = err instanceof Error ? err.message : 'Unknown error';
-		console.error('[/api/ask-ari/comment]', message);
+		const message = extractMessage(err);
+		console.error('[/api/ask-ari/comment] error:', message);
 		return NextResponse.json({ error: message }, { status: 500 });
 	}
 }

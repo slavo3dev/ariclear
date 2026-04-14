@@ -11,17 +11,25 @@ import { createServerClient } from '@supabase/ssr';
 
 async function getServerClient() {
 	const cookieStore = await cookies();
+	const url = (process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL ?? '').replace(
+		/\/$/,
+		'',
+	);
 	return createServerClient(
-		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!,
+		url,
 		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_ANON_KEY!,
 		{ cookies: { get: (name) => cookieStore.get(name)?.value } },
 	);
 }
 
 function getServiceClient() {
-	const url = process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!;
-	const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-	if (!url || !key) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY env var');
+	const url = process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL?.replace(
+		/\/$/,
+		'',
+	); // strip trailing slash
+	const key = process.env.SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY; // ← your actual env var name
+	if (!url || !key)
+		throw new Error('Missing SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY env var');
 	return createClient(url, key, {
 		auth: { autoRefreshToken: false, persistSession: false },
 	});
@@ -31,10 +39,16 @@ export async function POST(req: NextRequest) {
 	try {
 		// 1. Verify authenticated
 		const serverClient = await getServerClient();
-		const { data: { user }, error: authError } = await serverClient.auth.getUser();
+		const {
+			data: { user },
+			error: authError,
+		} = await serverClient.auth.getUser();
 
 		if (authError || !user) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+			return NextResponse.json(
+				{ error: 'Unauthorized' },
+				{ status: 401 },
+			);
 		}
 
 		// 2. Verify admin via DB — same check used everywhere else
@@ -46,11 +60,14 @@ export async function POST(req: NextRequest) {
 			.maybeSingle();
 
 		if (!adminRow) {
-			return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 });
+			return NextResponse.json(
+				{ error: 'Forbidden — admin only' },
+				{ status: 403 },
+			);
 		}
 
 		// 3. Validate body
-		const { question_id, content } = await req.json() as {
+		const { question_id, content } = (await req.json()) as {
 			question_id?: string;
 			content?: string;
 		};
@@ -65,6 +82,7 @@ export async function POST(req: NextRequest) {
 		// 4. Insert expert reply using service role (bypasses RLS)
 		const service = getServiceClient();
 
+		console.log('[reply] inserting comment for question:', question_id);
 		const { data: comment, error: insertError } = await service
 			.from('comments')
 			.insert({
@@ -77,7 +95,13 @@ export async function POST(req: NextRequest) {
 			.select()
 			.single();
 
-		if (insertError) throw insertError;
+		if (insertError) {
+			console.error(
+				'[reply] insert error:',
+				JSON.stringify(insertError, null, 2),
+			);
+			throw insertError;
+		}
 
 		// 5. Mark question as answered (non-fatal if this fails)
 		const { error: updateError } = await service
@@ -91,8 +115,18 @@ export async function POST(req: NextRequest) {
 
 		return NextResponse.json({ comment }, { status: 201 });
 	} catch (err: unknown) {
-		const message = err instanceof Error ? err.message : String(err);
-		console.error('[/api/ask-ari/reply]', message);
+		// Supabase errors are plain objects, not Error instances — extract message properly
+		const message =
+			err instanceof Error
+				? err.message
+				: typeof err === 'object' && err !== null && 'message' in err
+					? String((err as { message: unknown }).message)
+					: JSON.stringify(err);
+		console.error('[/api/ask-ari/reply] error detail:', message);
+		console.error(
+			'[/api/ask-ari/reply] full error:',
+			JSON.stringify(err, null, 2),
+		);
 		return NextResponse.json({ error: message }, { status: 500 });
 	}
 }

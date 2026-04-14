@@ -27,11 +27,20 @@ export async function GET() {
 	try {
 		// ── Step 1: verify authenticated ──────────────────────────────────────
 		const serverClient = await getServerClient();
-		const { data: { user }, error: authError } = await serverClient.auth.getUser();
+		const {
+			data: { user },
+			error: authError,
+		} = await serverClient.auth.getUser();
 
 		if (authError || !user) {
-			console.error('[questions] auth error:', authError?.message ?? 'no user');
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+			console.error(
+				'[questions] auth error:',
+				authError?.message ?? 'no user',
+			);
+			return NextResponse.json(
+				{ error: 'Unauthorized' },
+				{ status: 401 },
+			);
 		}
 
 		// ── Step 2: check admin (non-fatal if table missing or key absent) ─────
@@ -48,10 +57,15 @@ export async function GET() {
 					.maybeSingle();
 				isAdmin = !!adminRow;
 			} catch (e) {
-				console.warn('[questions] admin check threw — treating as regular user:', e);
+				console.warn(
+					'[questions] admin check threw — treating as regular user:',
+					e,
+				);
 			}
 		} else {
-			console.warn('[questions] SUPABASE_SERVICE_ROLE_KEY not set — skipping admin path');
+			console.warn(
+				'[questions] SUPABASE_SERVICE_ROLE_KEY not set — skipping admin path',
+			);
 		}
 
 		// ── Step 3a: admin with service client — fetch ALL questions ──────────
@@ -68,20 +82,29 @@ export async function GET() {
 				// Enrich with emails (best-effort — never crash if this fails)
 				const emailMap: Record<string, string> = {};
 				try {
-					const { data: authUsers } = await service.auth.admin.listUsers();
+					const { data: authUsers } =
+						await service.auth.admin.listUsers();
 					for (const u of authUsers?.users ?? []) {
 						emailMap[u.id] = u.email ?? u.id;
 					}
 				} catch (e) {
-					console.warn('[questions] listUsers failed — emails will be null:', e);
+					console.warn(
+						'[questions] listUsers failed — emails will be null:',
+						e,
+					);
 				}
 
-				const enriched = (questions ?? []).map((q: { user_id: string }) => ({
-					...q,
-					user_email: emailMap[q.user_id] ?? null,
-				}));
+				const enriched = (questions ?? []).map(
+					(q: { user_id: string }) => ({
+						...q,
+						user_email: emailMap[q.user_id] ?? null,
+					}),
+				);
 
-				return NextResponse.json({ questions: enriched, isAdmin: true });
+				return NextResponse.json({
+					questions: enriched,
+					isAdmin: true,
+				});
 			}
 		}
 
@@ -97,7 +120,6 @@ export async function GET() {
 		}
 
 		return NextResponse.json({ questions: data ?? [], isAdmin: false });
-
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error('[/api/ask-ari/questions] unhandled error:', message);
