@@ -1,491 +1,684 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useRef } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { Button } from "@ariclear/components";
-import { usePreorder, useAuth, AuthModal } from "@ariclear/components";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { usePathname } from 'next/navigation';
+import { Button } from '@ariclear/components';
+import { usePreorder, useAuth, AuthModal } from '@ariclear/components';
+import { useRouter } from 'next/navigation';
 
 type SubscriptionInfo = {
-  tier: string;
-  websites_limit: number;
-  websites_used: number;
-  websites_remaining: number;
-  trial_expires_at: string | null;
-  is_trial_expired: boolean;
-  can_scan: boolean;
+	tier: string;
+	websites_limit: number;
+	websites_used: number;
+	websites_remaining: number;
+	trial_expires_at: string | null;
+	is_trial_expired: boolean;
+	can_scan: boolean;
 };
 
 // ─── Defined outside Navbar to avoid "components created during render" error ──
 
 function ScanDot({ canScan }: { canScan: boolean }) {
-  if (!canScan) return null;
-  return <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" title="Ready to scan" />;
+	if (!canScan) return null;
+	return (
+		<span
+			className='w-1.5 h-1.5 rounded-full bg-green-500 shrink-0'
+			title='Ready to scan'
+		/>
+	);
 }
 
 function NavLink({
-  href,
-  icon,
-  label,
-  badge,
-  isActive,
-  onClick,
+	href,
+	icon,
+	label,
+	badge,
+	isActive,
+	onClick,
 }: {
-  href: string;
-  icon: string;
-  label: string;
-  badge?: React.ReactNode;
-  isActive: boolean;
-  onClick: () => void;
+	href: string;
+	icon: string;
+	label: string;
+	badge?: React.ReactNode;
+	isActive: boolean;
+	onClick: () => void;
 }) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 ${
-        isActive
-          ? "bg-choco-50 text-choco-900 font-semibold"
-          : "text-choco-700 hover:bg-choco-50 hover:text-choco-900"
-      }`}
-    >
-      <span className="text-base w-5 text-center">{icon}</span>
-      <span className="flex-1">{label}</span>
-      {badge}
-    </Link>
-  );
+	return (
+		<Link
+			href={href}
+			onClick={onClick}
+			className={`flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 ${
+				isActive
+					? 'bg-choco-50 text-choco-900 font-semibold'
+					: 'text-choco-700 hover:bg-choco-50 hover:text-choco-900'
+			}`}>
+			<span className='text-base w-5 text-center'>{icon}</span>
+			<span className='flex-1'>{label}</span>
+			{badge}
+		</Link>
+	);
 }
 
 export function Navbar() {
-  const { open: openPreorderModal } = usePreorder();
-  const { user, loading, signOut } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
+	const { open: openPreorderModal } = usePreorder();
+	const { user, loading, signOut } = useAuth();
+	const router = useRouter();
+	const pathname = usePathname();
 
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+	const [mobileOpen, setMobileOpen] = useState(false);
+	const [authOpen, setAuthOpen] = useState(false);
+	const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+	const [subscription, setSubscription] = useState<SubscriptionInfo | null>(
+		null,
+	);
 
-  const dropdownRef = useRef<HTMLDivElement>(null);
+	const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMobileOpen(false);
-        setUserDropdownOpen(false);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+	useEffect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				setMobileOpen(false);
+				setUserDropdownOpen(false);
+			}
+		};
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	}, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setUserDropdownOpen(false);
-      }
-    };
-    if (userDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [userDropdownOpen]);
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (
+				dropdownRef.current &&
+				!dropdownRef.current.contains(event.target as Node)
+			) {
+				setUserDropdownOpen(false);
+			}
+		};
+		if (userDropdownOpen) {
+			document.addEventListener('mousedown', handleClickOutside);
+		}
+		return () => {
+			document.removeEventListener('mousedown', handleClickOutside);
+		};
+	}, [userDropdownOpen]);
 
-  useEffect(() => {
-    if (!user) {
-      queueMicrotask(() => setSubscription(null));
-      return;
-    }
-    let isMounted = true;
-    const fetchSubscription = async () => {
-      try {
-        const res = await fetch("/api/subscription");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted) queueMicrotask(() => { if (isMounted) setSubscription(data); });
-      } catch (error) {
-        console.error("Error fetching subscription:", error);
-      }
-    };
-    fetchSubscription();
-    return () => { isMounted = false; };
-  }, [user]);
+	useEffect(() => {
+		if (!user) {
+			queueMicrotask(() => setSubscription(null));
+			return;
+		}
+		let isMounted = true;
+		const fetchSubscription = async () => {
+			try {
+				const res = await fetch('/api/subscription');
+				if (!res.ok) return;
+				const data = await res.json();
+				if (isMounted)
+					queueMicrotask(() => {
+						if (isMounted) setSubscription(data);
+					});
+			} catch (error) {
+				console.error('Error fetching subscription:', error);
+			}
+		};
+		fetchSubscription();
+		return () => {
+			isMounted = false;
+		};
+	}, [user]);
 
-  const closeMobile = () => setMobileOpen(false);
-  const closeDropdown = () => setUserDropdownOpen(false);
+	const closeMobile = () => setMobileOpen(false);
+	const closeDropdown = () => setUserDropdownOpen(false);
 
-  const handleTryDemo = (e: React.MouseEvent) => {
-    e.preventDefault();
-    closeMobile();
-    if (loading) return;
-    if (!user) { setAuthOpen(true); return; }
-    router.push("/scan");
-  };
+	const handleTryDemo = (e: React.MouseEvent) => {
+		e.preventDefault();
+		closeMobile();
+		if (loading) return;
+		if (!user) {
+			setAuthOpen(true);
+			return;
+		}
+		router.push('/scan');
+	};
 
-  const handleLogin = () => { closeMobile(); setAuthOpen(true); };
+	const handleLogin = () => {
+		closeMobile();
+		setAuthOpen(true);
+	};
 
-  const handleLogout = async () => {
-    closeMobile();
-    closeDropdown();
-    await signOut();
-    setSubscription(null);
-    router.push("/");
-  };
+	const handleLogout = async () => {
+		closeMobile();
+		closeDropdown();
+		await signOut();
+		setSubscription(null);
+		router.push('/');
+	};
 
-  const handleEarlyAccess = () => { closeMobile(); openPreorderModal(); };
+	const handleEarlyAccess = () => {
+		closeMobile();
+		openPreorderModal();
+	};
 
-  const isActive = (path: string) => pathname === path;
+	const isActive = (path: string) => pathname === path;
 
-  const getTierBadgeColor = (tier?: string) => {
-    if (!tier) return "bg-gray-100 text-gray-700 ring-gray-300";
-    switch (tier.toLowerCase()) {
-      case "free":     return "bg-gray-100 text-gray-700 ring-gray-300";
-      case "trial":    return "bg-blue-100 text-blue-700 ring-blue-300";
-      case "starter":  return "bg-green-100 text-green-700 ring-green-300";
-      case "pro":      return "bg-purple-100 text-purple-700 ring-purple-300";
-      case "business": return "bg-orange-100 text-orange-700 ring-orange-300";
-      case "agency":   return "bg-red-100 text-red-700 ring-red-300";
-      default:         return "bg-gray-100 text-gray-700 ring-gray-300";
-    }
-  };
+	const getTierBadgeColor = (tier?: string) => {
+		if (!tier) return 'bg-gray-100 text-gray-700 ring-gray-300';
+		switch (tier.toLowerCase()) {
+			case 'free':
+				return 'bg-gray-100 text-gray-700 ring-gray-300';
+			case 'trial':
+				return 'bg-blue-100 text-blue-700 ring-blue-300';
+			case 'starter':
+				return 'bg-green-100 text-green-700 ring-green-300';
+			case 'pro':
+				return 'bg-purple-100 text-purple-700 ring-purple-300';
+			case 'business':
+				return 'bg-orange-100 text-orange-700 ring-orange-300';
+			case 'agency':
+				return 'bg-red-100 text-red-700 ring-red-300';
+			default:
+				return 'bg-gray-100 text-gray-700 ring-gray-300';
+		}
+	};
 
-  const getTierLabel = (tier?: string) => {
-    if (!tier) return "Free";
-    return tier.charAt(0).toUpperCase() + tier.slice(1);
-  };
+	const getTierLabel = (tier?: string) => {
+		if (!tier) return 'Free';
+		return tier.charAt(0).toUpperCase() + tier.slice(1);
+	};
 
-  const getUsagePercentage = () => {
-    if (!subscription) return 0;
-    return (subscription.websites_used / subscription.websites_limit) * 100;
-  };
+	const getUsagePercentage = () => {
+		if (!subscription) return 0;
+		return (subscription.websites_used / subscription.websites_limit) * 100;
+	};
 
-  const getUsageColor = () => {
-    const pct = getUsagePercentage();
-    if (pct >= 90) return "bg-red-500";
-    if (pct >= 70) return "bg-orange-500";
-    return "bg-green-500";
-  };
+	const getUsageColor = () => {
+		const pct = getUsagePercentage();
+		if (pct >= 90) return 'bg-red-500';
+		if (pct >= 70) return 'bg-orange-500';
+		return 'bg-green-500';
+	};
 
-  return (
-    <>
-      <header className="sticky top-0 z-20 border-b border-choco-100 bg-cream-50/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+	return (
+		<>
+			<header className='sticky top-0 z-20 border-b border-choco-100 bg-cream-50/80 backdrop-blur-sm'>
+				<div className='mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8'>
+					{/* Logo */}
+					<Link
+						href='/'
+						className='group inline-flex items-center gap-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-choco-400'
+						aria-label='Go to homepage'>
+						<div className='flex h-9 w-9 items-center justify-center overflow-hidden rounded-2xl bg-choco-800 shadow-soft transition group-hover:bg-choco-900'>
+							<Image
+								src='/branding/arilogo-optimized.png'
+								alt='AriClear logo'
+								width={36}
+								height={36}
+								priority
+								className='object-contain'
+							/>
+						</div>
+						<span className='text-lg font-semibold tracking-tight text-choco-900'>
+							AriClear
+						</span>
+					</Link>
 
-          {/* Logo */}
-          <Link
-            href="/"
-            className="group inline-flex items-center gap-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-choco-400"
-            aria-label="Go to homepage"
-          >
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-2xl bg-choco-800 shadow-soft transition group-hover:bg-choco-900">
-              <Image
-                src="/branding/arilogo-optimized.png"
-                alt="AriClear logo"
-                width={36}
-                height={36}
-                priority
-                className="object-contain"
-              />
-            </div>
-            <span className="text-lg font-semibold tracking-tight text-choco-900">AriClear</span>
-          </Link>
+					{/* ── Desktop nav ─────────────────────────────────────────────── */}
+					<nav className='hidden items-center gap-4 text-sm text-choco-700 md:flex'>
+						<Link
+							href='/#how-it-works'
+							className='hover:text-choco-900 transition'>
+							How it works
+						</Link>
+						<Link
+							href='/#who-its-for'
+							className='hover:text-choco-900 transition'>
+							Who it&apos;s for
+						</Link>
 
-          {/* ── Desktop nav ─────────────────────────────────────────────── */}
-          <nav className="hidden items-center gap-4 text-sm text-choco-700 md:flex">
-            <Link href="/#how-it-works" className="hover:text-choco-900 transition">How it works</Link>
-            <Link href="/#who-its-for" className="hover:text-choco-900 transition">Who it&apos;s for</Link>
+						{!user && (
+							<button
+								type='button'
+								onClick={handleTryDemo}
+								className='hover:text-choco-900 cursor-pointer transition'>
+								Try demo
+							</button>
+						)}
 
-            {!user && (
-              <button type="button" onClick={handleTryDemo} className="hover:text-choco-900 cursor-pointer transition">
-                Try demo
-              </button>
-            )}
+						<Button
+							className='px-4 py-1.5 text-xs'
+							type='button'
+							onClick={handleEarlyAccess}>
+							Request Trial
+						</Button>
 
-            <Button className="px-4 py-1.5 text-xs" type="button" onClick={handleEarlyAccess}>
-              Request Trial
-            </Button>
+						{user ? (
+							<div className='relative' ref={dropdownRef}>
+								{/* Avatar button */}
+								<button
+									type='button'
+									onClick={() =>
+										setUserDropdownOpen(!userDropdownOpen)
+									}
+									className='flex items-center gap-2 rounded-xl border border-choco-200 bg-white/70 px-3 py-2 text-xs hover:bg-white transition focus:outline-none focus:ring-2 focus:ring-choco-400'>
+									<div className='flex h-6 w-6 items-center justify-center rounded-full bg-choco-800 text-white text-xs font-semibold'>
+										{user.email?.charAt(0).toUpperCase()}
+									</div>
+									<span className='max-w-[120px] truncate text-choco-900'>
+										{user.email?.split('@')[0]}
+									</span>
+									<svg
+										className={`h-4 w-4 text-choco-500 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`}
+										fill='none'
+										stroke='currentColor'
+										viewBox='0 0 24 24'>
+										<path
+											strokeLinecap='round'
+											strokeLinejoin='round'
+											strokeWidth={2}
+											d='M19 9l-7 7-7-7'
+										/>
+									</svg>
+								</button>
 
-            {user ? (
-              <div className="relative" ref={dropdownRef}>
-                {/* Avatar button */}
-                <button
-                  type="button"
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 rounded-xl border border-choco-200 bg-white/70 px-3 py-2 text-xs hover:bg-white transition focus:outline-none focus:ring-2 focus:ring-choco-400"
-                >
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-choco-800 text-white text-xs font-semibold">
-                    {user.email?.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="max-w-[120px] truncate text-choco-900">
-                    {user.email?.split("@")[0]}
-                  </span>
-                  <svg
-                    className={`h-4 w-4 text-choco-500 transition-transform duration-200 ${userDropdownOpen ? "rotate-180" : ""}`}
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
+								{/* ── Dropdown ────────────────────────────────────────── */}
+								{userDropdownOpen && (
+									<div className='absolute right-0 mt-2 w-72 rounded-2xl border border-choco-100 bg-white shadow-xl overflow-hidden'>
+										{/* User info + usage */}
+										<div className='px-4 py-4 border-b border-choco-100 bg-cream-50/60'>
+											<div className='flex items-center gap-3'>
+												<div className='flex h-9 w-9 items-center justify-center rounded-full bg-choco-800 text-white text-sm font-semibold shrink-0'>
+													{user.email
+														?.charAt(0)
+														.toUpperCase()}
+												</div>
+												<div className='min-w-0'>
+													<p className='text-xs font-semibold text-choco-900 truncate'>
+														{
+															user.email?.split(
+																'@',
+															)[0]
+														}
+													</p>
+													<p className='text-[11px] text-choco-500 truncate'>
+														{user.email}
+													</p>
+												</div>
+												{subscription && (
+													<span
+														className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${getTierBadgeColor(subscription.tier)}`}>
+														{getTierLabel(
+															subscription.tier,
+														)}
+													</span>
+												)}
+											</div>
 
-                {/* ── Dropdown ────────────────────────────────────────── */}
-                {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-choco-100 bg-white shadow-xl overflow-hidden">
+											{/* Usage bar */}
+											{subscription && (
+												<div className='mt-3'>
+													<div className='flex justify-between text-[11px] text-choco-500 mb-1.5'>
+														<span>
+															Websites scanned
+														</span>
+														<span className='font-medium text-choco-700'>
+															{
+																subscription.websites_used
+															}{' '}
+															/{' '}
+															{
+																subscription.websites_limit
+															}
+														</span>
+													</div>
+													<div className='w-full bg-choco-100 rounded-full h-1.5'>
+														<div
+															className={`h-1.5 rounded-full transition-all duration-500 ${getUsageColor()}`}
+															style={{
+																width: `${getUsagePercentage()}%`,
+															}}
+														/>
+													</div>
+												</div>
+											)}
+										</div>
 
-                    {/* User info + usage */}
-                    <div className="px-4 py-4 border-b border-choco-100 bg-cream-50/60">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-choco-800 text-white text-sm font-semibold shrink-0">
-                          {user.email?.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-choco-900 truncate">
-                            {user.email?.split("@")[0]}
-                          </p>
-                          <p className="text-[11px] text-choco-500 truncate">{user.email}</p>
-                        </div>
-                        {subscription && (
-                          <span className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${getTierBadgeColor(subscription.tier)}`}>
-                            {getTierLabel(subscription.tier)}
-                          </span>
-                        )}
-                      </div>
+										{/* ── Core tools ──────────────────────────────────── */}
+										<div className='py-2'>
+											<NavLink
+												href='/dashboard'
+												icon='📊'
+												label='Dashboard'
+												isActive={isActive(
+													'/dashboard',
+												)}
+												onClick={closeDropdown}
+											/>
+											<NavLink
+												href='/scan'
+												icon='🔍'
+												label='Site Scan'
+												badge={
+													<ScanDot
+														canScan={
+															subscription?.can_scan ??
+															false
+														}
+													/>
+												}
+												isActive={isActive('/scan')}
+												onClick={closeDropdown}
+											/>
+											<NavLink
+												href='/website-monitor'
+												icon='🌐'
+												label='Website Monitor'
+												isActive={isActive(
+													'/website-monitor',
+												)}
+												onClick={closeDropdown}
+											/>
+											<NavLink
+												href='/history'
+												icon='📜'
+												label='History'
+												isActive={isActive('/history')}
+												onClick={closeDropdown}
+											/>
+										</div>
 
-                      {/* Usage bar */}
-                      {subscription && (
-                        <div className="mt-3">
-                          <div className="flex justify-between text-[11px] text-choco-500 mb-1.5">
-                            <span>Websites scanned</span>
-                            <span className="font-medium text-choco-700">
-                              {subscription.websites_used} / {subscription.websites_limit}
-                            </span>
-                          </div>
-                          <div className="w-full bg-choco-100 rounded-full h-1.5">
-                            <div
-                              className={`h-1.5 rounded-full transition-all duration-500 ${getUsageColor()}`}
-                              style={{ width: `${getUsagePercentage()}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+										{/* ── Tools section ───────────────────────────────── */}
+										<div className='border-t border-choco-100 pt-2 pb-2'>
+											<p className='px-5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-choco-400'>
+												Tools
+											</p>
 
-                    {/* ── Core tools ──────────────────────────────────── */}
-                    <div className="py-2">
-                      <NavLink href="/dashboard" icon="📊" label="Dashboard" isActive={isActive("/dashboard")} onClick={closeDropdown} />
-                      <NavLink href="/scan" icon="🔍" label="Site Scan" badge={<ScanDot canScan={subscription?.can_scan ?? false} />} isActive={isActive("/scan")} onClick={closeDropdown} />
-                      <NavLink href="/website-monitor" icon="🌐" label="Website Monitor" isActive={isActive("/website-monitor")} onClick={closeDropdown} />
-                      <NavLink href="/history" icon="📜" label="History" isActive={isActive("/history")} onClick={closeDropdown} />
-                    </div>
+											{/* Brand Awareness */}
+											<Link
+												href='/brand-awareness'
+												onClick={closeDropdown}
+												className={`flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 ${
+													isActive('/brand-awareness')
+														? 'bg-choco-50 text-choco-900 font-semibold'
+														: 'text-choco-700 hover:bg-choco-50 hover:text-choco-900'
+												}`}>
+												<span className='text-base w-5 text-center'>
+													📣
+												</span>
+												<span className='flex-1'>
+													Brand Awareness
+												</span>
+												<span className='text-[10px] text-choco-400 bg-choco-100 rounded-full px-2 py-0.5 font-medium'>
+													One-time
+												</span>
+											</Link>
 
-                    {/* ── Tools section ───────────────────────────────── */}
-                    <div className="border-t border-choco-100 pt-2 pb-2">
-                      <p className="px-5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-choco-400">
-                        Tools
-                      </p>
-                      <Link
-                        href="/brand-awareness"
-                        onClick={closeDropdown}
-                        className={`flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 ${
-                          isActive("/brand-awareness")
-                            ? "bg-choco-50 text-choco-900 font-semibold"
-                            : "text-choco-700 hover:bg-choco-50 hover:text-choco-900"
-                        }`}
-                      >
-                        <span className="text-base w-5 text-center">📣</span>
-                        <span className="flex-1">Brand Awareness</span>
-                        <span className="text-[10px] text-choco-400 bg-choco-100 rounded-full px-2 py-0.5 font-medium">
-                          One-time
-                        </span>
-                      </Link>
-                    </div>
+											{/* Ask Ari */}
+											<Link
+												href='/ask-ari'
+												onClick={closeDropdown}
+												className={`flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 ${
+													isActive('/ask-ari')
+														? 'bg-choco-50 text-choco-900 font-semibold'
+														: 'text-choco-700 hover:bg-choco-50 hover:text-choco-900'
+												}`}>
+												<span className='text-base w-5 text-center'>
+													💬
+												</span>
+												<span className='flex-1'>
+													Ask Ari
+												</span>
+												<span className='text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium'>
+													24–48h
+												</span>
+											</Link>
+										</div>
 
-                    {/* ── Settings + Logout ───────────────────────────── */}
-                    <div className="border-t border-choco-100 py-2">
-                      <Link
-                        type="button"
-                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-choco-700 hover:bg-choco-50 transition rounded-lg mx-1 text-left"
-                        onClick={ () => { closeDropdown(); } }
-                        href="/dashboard"
-                        style={{ width: "calc(100% - 8px)" }}
-                      >
-                        <span className="text-base w-5 text-center">⚙️</span>
-                        <span>Settings</span>
-                      </Link>
-                    </div>
+										{/* ── Settings + Logout ───────────────────────────── */}
+										<div className='border-t border-choco-100 py-2'>
+											<Link
+												type='button'
+												className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-choco-700 hover:bg-choco-50 transition rounded-lg mx-1 text-left'
+												onClick={() => {
+													closeDropdown();
+												}}
+												href='/dashboard'
+												style={{
+													width: 'calc(100% - 8px)',
+												}}>
+												<span className='text-base w-5 text-center'>
+													⚙️
+												</span>
+												<span>Settings</span>
+											</Link>
+										</div>
 
-                    <div className="border-t border-choco-100 py-2">
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition rounded-lg mx-1 text-left"
-                        style={{ width: "calc(100% - 8px)" }}
-                      >
-                        <span className="text-base w-5 text-center">🚪</span>
-                        <span>Logout</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleLogin}
-                className="text-xs text-choco-700 hover:text-choco-900 transition"
-              >
-                Login
-              </button>
-            )}
-          </nav>
+										<div className='border-t border-choco-100 py-2'>
+											<button
+												type='button'
+												onClick={handleLogout}
+												className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition rounded-lg mx-1 text-left'
+												style={{
+													width: 'calc(100% - 8px)',
+												}}>
+												<span className='text-base w-5 text-center'>
+													🚪
+												</span>
+												<span>Logout</span>
+											</button>
+										</div>
+									</div>
+								)}
+							</div>
+						) : (
+							<button
+								type='button'
+								onClick={handleLogin}
+								className='text-xs text-choco-700 hover:text-choco-900 transition'>
+								Login
+							</button>
+						)}
+					</nav>
 
-          {/* Mobile toggle */}
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-xl border border-choco-200 bg-white/70 px-3 py-2 text-sm text-choco-900 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-choco-400 md:hidden"
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
-            aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen((v) => !v)}
-          >
-            <span className="text-lg leading-none">{mobileOpen ? "✕" : "☰"}</span>
-          </button>
-        </div>
+					{/* Mobile toggle */}
+					<button
+						type='button'
+						className='inline-flex items-center justify-center rounded-xl border border-choco-200 bg-white/70 px-3 py-2 text-sm text-choco-900 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-choco-400 md:hidden'
+						aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+						aria-expanded={mobileOpen}
+						onClick={() => setMobileOpen((v) => !v)}>
+						<span className='text-lg leading-none'>
+							{mobileOpen ? '✕' : '☰'}
+						</span>
+					</button>
+				</div>
 
-        {/* ── Mobile panel ──────────────────────────────────────────────── */}
-        {mobileOpen && (
-          <div className="border-t border-choco-100 bg-cream-50/95 backdrop-blur-sm md:hidden">
-            <nav className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
-              <div className="flex flex-col gap-1 text-sm text-choco-800">
+				{/* ── Mobile panel ──────────────────────────────────────────────── */}
+				{mobileOpen && (
+					<div className='border-t border-choco-100 bg-cream-50/95 backdrop-blur-sm md:hidden'>
+						<nav className='mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8'>
+							<div className='flex flex-col gap-1 text-sm text-choco-800'>
+								{/* Public links */}
+								<Link
+									href='/#how-it-works'
+									onClick={closeMobile}
+									className='rounded-xl px-3 py-2 hover:bg-white/70 transition'>
+									How it works
+								</Link>
+								<Link
+									href='/#who-its-for'
+									onClick={closeMobile}
+									className='rounded-xl px-3 py-2 hover:bg-white/70 transition'>
+									Who it&apos;s for
+								</Link>
 
-                {/* Public links */}
-                <Link href="/#how-it-works" onClick={closeMobile} className="rounded-xl px-3 py-2 hover:bg-white/70 transition">
-                  How it works
-                </Link>
-                <Link href="/#who-its-for" onClick={closeMobile} className="rounded-xl px-3 py-2 hover:bg-white/70 transition">
-                  Who it&apos;s for
-                </Link>
+								{user ? (
+									<>
+										{/* Section label */}
+										<div className='mt-3 mb-1 px-3'>
+											<p className='text-[10px] font-semibold uppercase tracking-[0.14em] text-choco-400'>
+												Your tools
+											</p>
+										</div>
 
-                {user ? (
-                  <>
-                    {/* Section label */}
-                    <div className="mt-3 mb-1 px-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-choco-400">
-                        Your tools
-                      </p>
-                    </div>
+										{/* Core tools */}
+										{[
+											{
+												href: '/dashboard',
+												icon: '📊',
+												label: 'Dashboard',
+											},
+											{
+												href: '/scan',
+												icon: '🔍',
+												label: 'Site Scan',
+											},
+											{
+												href: '/website-monitor',
+												icon: '🌐',
+												label: 'Website Monitor',
+											},
+											{
+												href: '/history',
+												icon: '📜',
+												label: 'History',
+											},
+										].map(({ href, icon, label }) => (
+											<Link
+												key={href}
+												href={href}
+												onClick={closeMobile}
+												className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition ${isActive(href) ? 'bg-white/70 font-semibold text-choco-900' : ''}`}>
+												<span>{icon}</span>
+												<span>{label}</span>
+											</Link>
+										))}
 
-                    {/* Core tools */}
-                    {[
-                      { href: "/dashboard",        icon: "📊", label: "Dashboard"       },
-                      { href: "/scan",             icon: "🔍", label: "Site Scan"       },
-                      { href: "/website-monitor",  icon: "🌐", label: "Website Monitor" },
-                      { href: "/history",          icon: "📜", label: "History"         },
-                    ].map(({ href, icon, label }) => (
-                      <Link
-                        key={href}
-                        href={href}
-                        onClick={closeMobile}
-                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition ${isActive(href) ? "bg-white/70 font-semibold text-choco-900" : ""}`}
-                      >
-                        <span>{icon}</span>
-                        <span>{label}</span>
-                      </Link>
-                    ))}
+										{/* Tools section */}
+										<div className='mt-3 mb-1 px-3'>
+											<p className='text-[10px] font-semibold uppercase tracking-[0.14em] text-choco-400'>
+												Tools
+											</p>
+										</div>
 
-                    {/* Tools section */}
-                    <div className="mt-3 mb-1 px-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-choco-400">
-                        Tools
-                      </p>
-                    </div>
+										<Link
+											href='/brand-awareness'
+											onClick={closeMobile}
+											className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition ${isActive('/brand-awareness') ? 'bg-white/70 font-semibold text-choco-900' : ''}`}>
+											<span>📣</span>
+											<span className='flex-1'>
+												Brand Awareness
+											</span>
+											<span className='text-[10px] text-choco-400 bg-choco-100 rounded-full px-2 py-0.5'>
+												One-time
+											</span>
+										</Link>
 
-                    <Link
-                      href="/brand-awareness"
-                      onClick={closeMobile}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition ${isActive("/brand-awareness") ? "bg-white/70 font-semibold text-choco-900" : ""}`}
-                    >
-                      <span>📣</span>
-                      <span className="flex-1">Brand Awareness</span>
-                      <span className="text-[10px] text-choco-400 bg-choco-100 rounded-full px-2 py-0.5">
-                        One-time
-                      </span>
-                    </Link>
+										{/* Ask Ari — mobile */}
+										<Link
+											href='/ask-ari'
+											onClick={closeMobile}
+											className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition ${isActive('/ask-ari') ? 'bg-white/70 font-semibold text-choco-900' : ''}`}>
+											<span>💬</span>
+											<span className='flex-1'>
+												Ask Ari
+											</span>
+											<span className='text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5'>
+												24–48h
+											</span>
+										</Link>
 
-                    {/* Settings */}
-                    <Link
-                      href="/dashboard"
-                      type="button"
-                      onClick={() => { closeMobile(); }}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition text-left"
-                    >
-                      <span>⚙️</span>
-                      <span>Settings</span>
-                    </Link>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleTryDemo}
-                    className="rounded-xl px-3 py-2 hover:bg-white/70 cursor-pointer transition text-left"
-                  >
-                    Try demo
-                  </button>
-                )}
+										{/* Settings */}
+										<Link
+											href='/dashboard'
+											type='button'
+											onClick={() => {
+												closeMobile();
+											}}
+											className='flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition text-left'>
+											<span>⚙️</span>
+											<span>Settings</span>
+										</Link>
+									</>
+								) : (
+									<button
+										type='button'
+										onClick={handleTryDemo}
+										className='rounded-xl px-3 py-2 hover:bg-white/70 cursor-pointer transition text-left'>
+										Try demo
+									</button>
+								)}
 
-                <div className="pt-3">
-                  <Button type="button" className="w-full justify-center" onClick={handleEarlyAccess}>
-                    Request Trial
-                  </Button>
-                </div>
+								<div className='pt-3'>
+									<Button
+										type='button'
+										className='w-full justify-center'
+										onClick={handleEarlyAccess}>
+										Request Trial
+									</Button>
+								</div>
 
-                {/* User info card — mobile */}
-                {user && subscription && (
-                  <div className="mt-3 px-3 py-3 bg-white/60 rounded-xl border border-choco-100 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-choco-500 truncate">{user.email}</p>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${getTierBadgeColor(subscription.tier)}`}>
-                        {getTierLabel(subscription.tier)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-choco-500">
-                      <span>Websites</span>
-                      <span>{subscription.websites_used}/{subscription.websites_limit}</span>
-                    </div>
-                    <div className="w-full bg-choco-100 rounded-full h-1.5">
-                      <div
-                        className={`h-1.5 rounded-full transition-all ${getUsageColor()}`}
-                        style={{ width: `${getUsagePercentage()}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
+								{/* User info card — mobile */}
+								{user && subscription && (
+									<div className='mt-3 px-3 py-3 bg-white/60 rounded-xl border border-choco-100 space-y-2'>
+										<div className='flex items-center justify-between'>
+											<p className='text-xs text-choco-500 truncate'>
+												{user.email}
+											</p>
+											<span
+												className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${getTierBadgeColor(subscription.tier)}`}>
+												{getTierLabel(
+													subscription.tier,
+												)}
+											</span>
+										</div>
+										<div className='flex items-center justify-between text-[11px] text-choco-500'>
+											<span>Websites</span>
+											<span>
+												{subscription.websites_used}/
+												{subscription.websites_limit}
+											</span>
+										</div>
+										<div className='w-full bg-choco-100 rounded-full h-1.5'>
+											<div
+												className={`h-1.5 rounded-full transition-all ${getUsageColor()}`}
+												style={{
+													width: `${getUsagePercentage()}%`,
+												}}
+											/>
+										</div>
+									</div>
+								)}
 
-                <div className="pt-2">
-                  {user ? (
-                    <button
-                      type="button"
-                      className="w-full rounded-full bg-white px-4 py-2 text-sm font-medium text-red-500 ring-1 ring-red-100 transition hover:bg-red-50"
-                      onClick={handleLogout}
-                    >
-                      Logout
-                    </button>
-                  ) : (
-                    <Button type="button" className="w-full justify-center" onClick={handleLogin}>
-                      Login / Sign up
-                    </Button>
-                  )}
-                </div>
+								<div className='pt-2'>
+									{user ? (
+										<button
+											type='button'
+											className='w-full rounded-full bg-white px-4 py-2 text-sm font-medium text-red-500 ring-1 ring-red-100 transition hover:bg-red-50'
+											onClick={handleLogout}>
+											Logout
+										</button>
+									) : (
+										<Button
+											type='button'
+											className='w-full justify-center'
+											onClick={handleLogin}>
+											Login / Sign up
+										</Button>
+									)}
+								</div>
+							</div>
+						</nav>
+					</div>
+				)}
+			</header>
 
-              </div>
-            </nav>
-          </div>
-        )}
-      </header>
-
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} initialMode="login" />
-    </>
-  );
+			<AuthModal
+				open={authOpen}
+				onClose={() => setAuthOpen(false)}
+				initialMode='login'
+			/>
+		</>
+	);
 }
