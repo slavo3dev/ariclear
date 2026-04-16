@@ -111,8 +111,7 @@ function Avatar({
 		? 'bg-emerald-100 text-emerald-700'
 		: 'bg-choco-100 text-choco-600';
 	return (
-		<div
-			className={`${dim} ${colors} rounded-full flex items-center justify-center font-medium flex-shrink-0`}>
+		<div className={`${dim} ${colors} rounded-full flex items-center justify-center font-medium flex-shrink-0`}>
 			{isExpert ? 'Ari' : getInitials(name)}
 		</div>
 	);
@@ -121,30 +120,20 @@ function Avatar({
 function CommentItem({ comment }: { comment: Comment }) {
 	return (
 		<div className='flex gap-2.5'>
-			<Avatar
-				name={comment.author_name}
-				isExpert={comment.is_expert}
-				size='sm'
-			/>
+			<Avatar name={comment.author_name} isExpert={comment.is_expert} size='sm' />
 			<div className='flex-1 min-w-0'>
 				<div className='flex items-center gap-2 mb-0.5'>
 					<span className='text-[12px] font-medium text-gray-900'>
-						{comment.is_expert
-							? 'Ari (Expert)'
-							: comment.author_name}
+						{comment.is_expert ? 'Ari (Expert)' : comment.author_name}
 					</span>
 					{comment.is_expert && (
 						<span className='text-[10px] font-medium bg-emerald-100 text-emerald-700 px-1.5 py-0 rounded'>
 							Expert
 						</span>
 					)}
-					<span className='text-[11px] text-gray-400'>
-						{formatDate(comment.created_at)}
-					</span>
+					<span className='text-[11px] text-gray-400'>{formatDate(comment.created_at)}</span>
 				</div>
-				<p className='text-[13px] text-gray-700 leading-relaxed'>
-					{comment.content}
-				</p>
+				<p className='text-[13px] text-gray-700 leading-relaxed'>{comment.content}</p>
 			</div>
 		</div>
 	);
@@ -155,16 +144,10 @@ function ExpertReply({ comment }: { comment: Comment }) {
 		<div className='border-l-2 border-emerald-500 pl-3.5 py-2 bg-emerald-50/40 rounded-r-lg'>
 			<div className='flex items-center gap-1.5 mb-1.5'>
 				<span className='w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block' />
-				<span className='text-[11px] font-semibold text-emerald-700 uppercase tracking-wide'>
-					Expert reply
-				</span>
-				<span className='text-[11px] text-gray-400 ml-1'>
-					{formatDate(comment.created_at)}
-				</span>
+				<span className='text-[11px] font-semibold text-emerald-700 uppercase tracking-wide'>Expert reply</span>
+				<span className='text-[11px] text-gray-400 ml-1'>{formatDate(comment.created_at)}</span>
 			</div>
-			<p className='text-[13px] text-gray-700 leading-relaxed'>
-				{comment.content}
-			</p>
+			<p className='text-[13px] text-gray-700 leading-relaxed'>{comment.content}</p>
 		</div>
 	);
 }
@@ -172,20 +155,12 @@ function ExpertReply({ comment }: { comment: Comment }) {
 function WaitingBanner() {
 	return (
 		<div className='flex items-start gap-2.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5'>
-			<svg
-				className='w-3.5 h-3.5 flex-shrink-0 mt-0.5'
-				viewBox='0 0 14 14'
-				fill='none'
-				stroke='currentColor'
-				strokeWidth='1.2'
-				strokeLinecap='round'>
+			<svg className='w-3.5 h-3.5 flex-shrink-0 mt-0.5' viewBox='0 0 14 14' fill='none' stroke='currentColor' strokeWidth='1.2' strokeLinecap='round'>
 				<circle cx='7' cy='7' r='6' />
 				<path d='M7 4v3.5l2 1.5' />
 			</svg>
 			<span>
-				Our expert will review this and reply within{' '}
-				<strong>24–48 hours</strong>. You&apos;ll see the answer appear
-				right here — no email needed.
+				Our expert will review this and reply within <strong>24–48 hours</strong>. You&apos;ll see the answer appear right here — no email needed.
 			</span>
 		</div>
 	);
@@ -193,26 +168,12 @@ function WaitingBanner() {
 
 // ─── Field wrapper ────────────────────────────────────────────────────────────
 
-function Field({
-	label,
-	hint,
-	children,
-}: {
-	label: string;
-	hint?: string;
-	children: React.ReactNode;
-}) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
 	return (
 		<div>
-			<label className='block text-[12px] font-semibold text-gray-700 mb-1.5'>
-				{label}
-			</label>
+			<label className='block text-[12px] font-semibold text-gray-700 mb-1.5'>{label}</label>
 			{children}
-			{hint && (
-				<p className='text-[11px] text-gray-400 mt-1.5 leading-relaxed'>
-					{hint}
-				</p>
-			)}
+			{hint && <p className='text-[11px] text-gray-400 mt-1.5 leading-relaxed'>{hint}</p>}
 		</div>
 	);
 }
@@ -244,28 +205,26 @@ function ReplyInput({
 				const res = await fetch('/api/ask-ari/reply', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						question_id: questionId,
-						content: text,
-					}),
+					body: JSON.stringify({ question_id: questionId, content: text }),
 				});
 				if (!res.ok) throw new Error('Failed to post expert reply');
 				const data = await res.json();
 				onSent(data.comment);
 			} else {
-				const { data, error } = await supabaseAriClear
-					.from('comments')
-					.insert({
+				// POST to server route — same reason as question insert:
+				// direct supabaseAriClear calls lack the user's session JWT.
+				const res = await fetch('/api/ask-ari/comment', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
 						question_id: questionId,
-						author_id: userId,
 						author_name: userName,
 						content: text,
-						is_expert: false,
-					})
-					.select()
-					.single();
-				if (error) throw error;
-				onSent(data as Comment);
+					}),
+				});
+				if (!res.ok) throw new Error('Failed to post comment');
+				const data = await res.json();
+				onSent(data.comment as Comment);
 			}
 			setValue('');
 		} catch (err) {
@@ -323,37 +282,24 @@ function ThreadCard({
 	const commentCount = question.comments.length;
 
 	return (
-		<div
-			className={`bg-white border rounded-xl overflow-hidden transition-all duration-150 ${isOpen ? 'border-gray-300 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
-			<button
-				onClick={onToggle}
-				className='w-full flex items-center gap-3 px-4 py-3.5 text-left'>
+		<div className={`bg-white border rounded-xl overflow-hidden transition-all duration-150 ${isOpen ? 'border-gray-300 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+			<button onClick={onToggle} className='w-full flex items-center gap-3 px-4 py-3.5 text-left'>
 				<Avatar name={userName} size='md' />
 				<div className='flex-1 min-w-0'>
-					<p className='text-[14px] font-medium text-gray-900 truncate'>
-						{question.title}
-					</p>
+					<p className='text-[14px] font-medium text-gray-900 truncate'>{question.title}</p>
 					<div className='flex items-center gap-2 mt-0.5 flex-wrap'>
 						<StatusBadge status={question.status} />
-						<span className='text-[11px] text-gray-400'>
-							{formatDate(question.created_at)}
-						</span>
+						<span className='text-[11px] text-gray-400'>{formatDate(question.created_at)}</span>
 						{commentCount > 0 && (
 							<span className='text-[11px] text-gray-400'>
-								{commentCount} comment
-								{commentCount !== 1 ? 's' : ''}
+								{commentCount} comment{commentCount !== 1 ? 's' : ''}
 							</span>
 						)}
 					</div>
 				</div>
 				<svg
 					className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-					viewBox='0 0 16 16'
-					fill='none'
-					stroke='currentColor'
-					strokeWidth='1.5'
-					strokeLinecap='round'
-					strokeLinejoin='round'>
+					viewBox='0 0 16 16' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
 					<path d='M4 6l4 4 4-4' />
 				</svg>
 			</button>
@@ -362,40 +308,23 @@ function ThreadCard({
 				<div className='border-t border-gray-100 px-4 pb-4 pt-3 space-y-3'>
 					<div className='bg-gray-50 rounded-lg px-3.5 py-3 space-y-1.5'>
 						{question.url && (
-							<a
-								href={question.url}
-								target='_blank'
-								rel='noopener noreferrer'
+							<a href={question.url} target='_blank' rel='noopener noreferrer'
 								className='flex items-center gap-1.5 text-[11px] text-emerald-600 hover:text-emerald-800 transition-colors break-all'>
-								<svg
-									className='w-3 h-3 flex-shrink-0'
-									viewBox='0 0 12 12'
-									fill='none'
-									stroke='currentColor'
-									strokeWidth='1.2'
-									strokeLinecap='round'>
+								<svg className='w-3 h-3 flex-shrink-0' viewBox='0 0 12 12' fill='none' stroke='currentColor' strokeWidth='1.2' strokeLinecap='round'>
 									<path d='M4.5 7.5L7.5 4.5M5 3H3a2 2 0 000 4h1M7 9h2a2 2 0 000-4H8' />
 								</svg>
 								{question.url}
 							</a>
 						)}
-						<p className='text-[13px] text-gray-700 leading-relaxed'>
-							{question.message}
-						</p>
+						<p className='text-[13px] text-gray-700 leading-relaxed'>{question.message}</p>
 					</div>
 
-					{expertReply ? (
-						<ExpertReply comment={expertReply} />
-					) : (
-						<WaitingBanner />
-					)}
+					{expertReply ? <ExpertReply comment={expertReply} /> : <WaitingBanner />}
 
 					{followUps.length > 0 && (
 						<div className='space-y-3 pt-1'>
 							<div className='h-px bg-gray-100' />
-							{followUps.map((c) => (
-								<CommentItem key={c.id} comment={c} />
-							))}
+							{followUps.map((c) => <CommentItem key={c.id} comment={c} />)}
 						</div>
 					)}
 
@@ -404,9 +333,7 @@ function ThreadCard({
 						userId={userId}
 						userName={userName}
 						isAdmin={isAdmin}
-						onSent={(comment) =>
-							onCommentAdded(question.id, comment)
-						}
+						onSent={(comment) => onCommentAdded(question.id, comment)}
 					/>
 				</div>
 			)}
@@ -433,29 +360,29 @@ function NewQuestionForm({
 
 	async function handleSubmit() {
 		setError(null);
-		if (!title.trim()) {
-			setError('Please add a question title.');
-			return;
-		}
-		if (!message.trim()) {
-			setError('Please describe your question.');
-			return;
-		}
+		if (!title.trim()) { setError('Please add a question title.'); return; }
+		if (!message.trim()) { setError('Please describe your question.'); return; }
 		setSubmitting(true);
 		try {
-			const { data, error: insertError } = await supabaseAriClear
-				.from('questions')
-				.insert({
-					user_id: userId,
+			// POST to server route — session is read from cookies server-side,
+			// so the Supabase insert carries the user's JWT and RLS passes.
+			// Direct supabaseAriClear.from().insert() causes 401 because the
+			// module-level client has no session attached.
+			const res = await fetch('/api/ask-ari/question', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
 					title: title.trim(),
 					url: url.trim() || null,
 					message: message.trim(),
-					status: 'waiting',
-				})
-				.select()
-				.single();
-			if (insertError) throw insertError;
-			onCreated({ ...(data as Question), comments: [] });
+				}),
+			});
+			if (!res.ok) {
+				const err = await res.json();
+				throw new Error(err.error ?? 'Failed to submit question');
+			}
+			const { question } = await res.json();
+			onCreated({ ...question, comments: [] });
 		} catch (err: unknown) {
 			console.error(err);
 			setError('Failed to submit your question. Please try again.');
@@ -468,19 +395,11 @@ function NewQuestionForm({
 		<div className='bg-white border border-gray-200 rounded-xl p-5 mb-5 shadow-sm'>
 			<div className='flex items-center gap-2 mb-5'>
 				<div className='w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0'>
-					<svg
-						className='w-3 h-3 text-emerald-600'
-						viewBox='0 0 12 12'
-						fill='none'
-						stroke='currentColor'
-						strokeWidth='1.8'
-						strokeLinecap='round'>
+					<svg className='w-3 h-3 text-emerald-600' viewBox='0 0 12 12' fill='none' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round'>
 						<path d='M6 1v10M1 6h10' />
 					</svg>
 				</div>
-				<h2 className='text-[15px] font-semibold text-gray-900'>
-					Ask a new question
-				</h2>
+				<h2 className='text-[15px] font-semibold text-gray-900'>Ask a new question</h2>
 			</div>
 
 			<div className='space-y-4'>
@@ -514,9 +433,7 @@ function NewQuestionForm({
 					<textarea
 						value={message}
 						onChange={(e) => setMessage(e.target.value)}
-						placeholder={
-							'Tell us what\'s happening. For example:\n\u2022 "My scan shows a low structure score but I have clear H1/H2 headings \u2014 what am I missing?"\n\u2022 "I\'m not sure if my meta description is helping or hurting my AI clarity score"\n\u2022 "Can you explain what \'AI extractability\' means and how to fix it on my site?"'
-						}
+						placeholder={"Tell us what's happening. For example:\n\u2022 \"My scan shows a low structure score but I have clear H1/H2 headings \u2014 what am I missing?\"\n\u2022 \"I'm not sure if my meta description is helping or hurting my AI clarity score\"\n\u2022 \"Can you explain what 'AI extractability' means and how to fix it on my site?\""}
 						rows={5}
 						className='w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors resize-y'
 					/>
@@ -559,9 +476,7 @@ export default function AskAriPage() {
 	const [loading, setLoading] = useState(false); // false until we confirm a user exists
 	const [openIds, setOpenIds] = useState<Set<string>>(new Set());
 	const [showForm, setShowForm] = useState(false);
-	const [activeTab, setActiveTab] = useState<'all' | 'open' | 'answered'>(
-		'all',
-	);
+	const [activeTab, setActiveTab] = useState<'all' | 'open' | 'answered'>('all');
 	// isAdmin is ONLY true if Supabase confirms a row exists in admin_users for this user.
 	// It is never derived from env vars, JWT claims, or any client-passed data.
 	const [isAdmin, setIsAdmin] = useState(false);
@@ -583,10 +498,7 @@ export default function AskAriPage() {
 	// ── Admin check ────────────────────────────────────────────────────────────
 
 	useEffect(() => {
-		if (!authUser) {
-			setIsAdmin(false);
-			return;
-		}
+		if (!authUser) { setIsAdmin(false); return; }
 		checkIsAdmin(authUser.id).then(setIsAdmin);
 	}, [authUser]);
 
@@ -596,18 +508,16 @@ export default function AskAriPage() {
 		if (!authUser?.id) return;
 		setLoading(true);
 		try {
-			const { data, error } = await supabaseAriClear
-				.from('questions')
-				.select('*, comments(*)')
-				.order('created_at', { ascending: false });
-			if (error) throw error;
+			// GET via server route — session is read from cookies server-side
+			// so the Supabase query carries the user's JWT and RLS passes.
+			const res = await fetch('/api/ask-ari/questions');
+			if (!res.ok) throw new Error('Failed to fetch questions');
+			const { questions: data } = await res.json();
 			const normalised = (data ?? []).map(
 				(q: Question & { comments: Comment[] }) => ({
 					...q,
 					comments: (q.comments ?? []).sort(
-						(a, b) =>
-							new Date(a.created_at).getTime() -
-							new Date(b.created_at).getTime(),
+						(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
 					),
 				}),
 			);
@@ -617,11 +527,9 @@ export default function AskAriPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [authUser?.id]); // ← stable primitive, not the derived `user` object
+	}, [authUser?.id]);
 
-	useEffect(() => {
-		fetchQuestions();
-	}, [fetchQuestions]);
+	useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
 
 	// ── Real-time ──────────────────────────────────────────────────────────────
 
@@ -629,45 +537,31 @@ export default function AskAriPage() {
 		if (!authUser?.id) return;
 		channelRef.current = supabaseAriClear
 			.channel('ask-ari-realtime')
-			.on(
-				'postgres_changes',
-				{ event: 'INSERT', schema: 'public', table: 'questions' },
-				(payload) => {
-					const newQ = payload.new as Question;
-					setQuestions((prev) => {
-						if (prev.find((q) => q.id === newQ.id)) return prev;
-						return [{ ...newQ, comments: [] }, ...prev];
-					});
-				},
-			)
-			.on(
-				'postgres_changes',
-				{ event: 'INSERT', schema: 'public', table: 'comments' },
-				(payload) => {
-					const newComment = payload.new as Comment;
-					setQuestions((prev) =>
-						prev.map((q) =>
-							q.id === newComment.question_id
-								? {
-										...q,
-										status: newComment.is_expert
-											? 'answered'
-											: q.status,
-										comments: q.comments.find(
-											(c) => c.id === newComment.id,
-										)
-											? q.comments
-											: [...q.comments, newComment],
-									}
-								: q,
-						),
-					);
-				},
-			)
+			.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'questions' }, (payload) => {
+				const newQ = payload.new as Question;
+				setQuestions((prev) => {
+					if (prev.find((q) => q.id === newQ.id)) return prev;
+					return [{ ...newQ, comments: [] }, ...prev];
+				});
+			})
+			.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload) => {
+				const newComment = payload.new as Comment;
+				setQuestions((prev) =>
+					prev.map((q) =>
+						q.id === newComment.question_id
+							? {
+									...q,
+									status: newComment.is_expert ? 'answered' : q.status,
+									comments: q.comments.find((c) => c.id === newComment.id)
+										? q.comments
+										: [...q.comments, newComment],
+								}
+							: q,
+					),
+				);
+			})
 			.subscribe();
-		return () => {
-			channelRef.current?.unsubscribe();
-		};
+		return () => { channelRef.current?.unsubscribe(); };
 	}, [authUser?.id]); // ← stable primitive
 
 	// ── Helpers ────────────────────────────────────────────────────────────────
@@ -687,9 +581,7 @@ export default function AskAriPage() {
 					? {
 							...q,
 							status: comment.is_expert ? 'answered' : q.status,
-							comments: q.comments.find(
-								(c) => c.id === comment.id,
-							)
+							comments: q.comments.find((c) => c.id === comment.id)
 								? q.comments
 								: [...q.comments, comment],
 						}
@@ -710,9 +602,7 @@ export default function AskAriPage() {
 		if (activeTab === 'answered') return q.status === 'answered';
 		return true;
 	});
-	const answeredCount = questions.filter(
-		(q) => q.status === 'answered',
-	).length;
+	const answeredCount = questions.filter((q) => q.status === 'answered').length;
 	const openCount = questions.filter((q) => q.status !== 'answered').length;
 
 	// ── Guards ─────────────────────────────────────────────────────────────────
@@ -723,10 +613,7 @@ export default function AskAriPage() {
 				<Navbar />
 				<div className='max-w-2xl mx-auto px-4 py-10 space-y-3'>
 					{[1, 2, 3].map((i) => (
-						<div
-							key={i}
-							className='bg-white border border-gray-200 rounded-xl h-16 animate-pulse'
-						/>
+						<div key={i} className='bg-white border border-gray-200 rounded-xl h-16 animate-pulse' />
 					))}
 				</div>
 			</div>
@@ -737,25 +624,15 @@ export default function AskAriPage() {
 		return (
 			<div className='min-h-screen bg-cream-50'>
 				<Navbar />
-				<div
-					className='flex items-center justify-center'
-					style={{ minHeight: 'calc(100vh - 64px)' }}>
+				<div className='flex items-center justify-center' style={{ minHeight: 'calc(100vh - 64px)' }}>
 					<div className='text-center'>
 						<div className='w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3'>
-							<svg
-								className='w-6 h-6 text-emerald-600'
-								viewBox='0 0 16 16'
-								fill='currentColor'>
+							<svg className='w-6 h-6 text-emerald-600' viewBox='0 0 16 16' fill='currentColor'>
 								<path d='M8 1a7 7 0 100 14A7 7 0 008 1zm0 2.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM8 12c-1.67 0-3.14-.85-4-2.14.02-1.33 2.67-2.06 4-2.06s3.98.73 4 2.06A4.77 4.77 0 018 12z' />
 							</svg>
 						</div>
-						<p className='text-[15px] font-medium text-gray-900'>
-							Sign in to use Ask Ari
-						</p>
-						<p className='text-[13px] text-gray-500 mt-1'>
-							Get expert answers to your website clarity
-							questions.
-						</p>
+						<p className='text-[15px] font-medium text-gray-900'>Sign in to use Ask Ari</p>
+						<p className='text-[13px] text-gray-500 mt-1'>Get expert answers to your website clarity questions.</p>
 					</div>
 				</div>
 			</div>
@@ -768,25 +645,20 @@ export default function AskAriPage() {
 		<div className='min-h-screen bg-cream-50'>
 			<Navbar />
 			<div className='max-w-2xl mx-auto px-4 py-8 sm:py-10'>
+
 				{/* Page header */}
 				<div className='flex items-start justify-between mb-6'>
 					<div>
 						<div className='flex items-center gap-2.5 mb-1'>
 							<div className='w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0'>
-								<svg
-									className='w-4 h-4 text-white'
-									viewBox='0 0 16 16'
-									fill='currentColor'>
+								<svg className='w-4 h-4 text-white' viewBox='0 0 16 16' fill='currentColor'>
 									<path d='M8 1a7 7 0 100 14A7 7 0 008 1zm0 2.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM8 12c-1.67 0-3.14-.85-4-2.14.02-1.33 2.67-2.06 4-2.06s3.98.73 4 2.06A4.77 4.77 0 018 12z' />
 								</svg>
 							</div>
-							<h1 className='text-[20px] font-semibold text-gray-900'>
-								Ask Ari
-							</h1>
+							<h1 className='text-[20px] font-semibold text-gray-900'>Ask Ari</h1>
 						</div>
 						<p className='text-[13px] text-gray-500 pl-[42px]'>
-							Ask anything about your website scores or strategy.
-							Expert reply within 24–48 hours.
+							Ask anything about your website scores or strategy. Expert reply within 24–48 hours.
 						</p>
 					</div>
 
@@ -804,18 +676,9 @@ export default function AskAriPage() {
 							</button>
 						)}
 						<button
-							onClick={() => {
-								setShowForm(true);
-								setActiveTab('all');
-							}}
+							onClick={() => { setShowForm(true); setActiveTab('all'); }}
 							className='flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors'>
-							<svg
-								className='w-3 h-3'
-								viewBox='0 0 12 12'
-								fill='none'
-								stroke='currentColor'
-								strokeWidth='2'
-								strokeLinecap='round'>
+							<svg className='w-3 h-3' viewBox='0 0 12 12' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
 								<path d='M6 1v10M1 6h10' />
 							</svg>
 							New question
@@ -827,20 +690,12 @@ export default function AskAriPage() {
 				{isAdmin && adminMode && (
 					<div className='mb-4 flex items-center justify-between text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2'>
 						<div className='flex items-center gap-2'>
-							<svg
-								className='w-3.5 h-3.5 flex-shrink-0'
-								viewBox='0 0 14 14'
-								fill='currentColor'>
+							<svg className='w-3.5 h-3.5 flex-shrink-0' viewBox='0 0 14 14' fill='currentColor'>
 								<path d='M7 1l1.545 3.13L12 4.635l-2.5 2.437.59 3.44L7 8.885l-3.09 1.627.59-3.44L2 4.635l3.455-.505L7 1z' />
 							</svg>
-							<span>
-								Admin mode — your replies will be posted as Ari
-								and marked as official expert answers.
-							</span>
+							<span>Admin mode — your replies will be posted as Ari and marked as official expert answers.</span>
 						</div>
-						<button
-							onClick={() => setAdminMode(false)}
-							className='text-emerald-600 hover:text-emerald-800 underline ml-3 flex-shrink-0'>
+						<button onClick={() => setAdminMode(false)} className='text-emerald-600 hover:text-emerald-800 underline ml-3 flex-shrink-0'>
 							Exit
 						</button>
 					</div>
@@ -866,11 +721,7 @@ export default function AskAriPage() {
 									? 'bg-white border-gray-300 text-gray-900 shadow-sm'
 									: 'border-transparent text-gray-500 hover:text-gray-700'
 							}`}>
-							{tab === 'all'
-								? 'All'
-								: tab === 'open'
-									? 'Open'
-									: 'Answered'}
+							{tab === 'all' ? 'All' : tab === 'open' ? 'Open' : 'Answered'}
 							{tab === 'all' && questions.length > 0 && (
 								<span className='w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 text-[10px] flex items-center justify-center font-medium'>
 									{questions.length}
@@ -894,23 +745,13 @@ export default function AskAriPage() {
 				{loading ? (
 					<div className='space-y-3'>
 						{[1, 2, 3].map((i) => (
-							<div
-								key={i}
-								className='bg-white border border-gray-200 rounded-xl h-16 animate-pulse'
-							/>
+							<div key={i} className='bg-white border border-gray-200 rounded-xl h-16 animate-pulse' />
 						))}
 					</div>
 				) : filtered.length === 0 ? (
 					<div className='text-center py-14'>
 						<div className='w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto mb-4'>
-							<svg
-								className='w-7 h-7 text-emerald-500'
-								viewBox='0 0 24 24'
-								fill='none'
-								stroke='currentColor'
-								strokeWidth='1.5'
-								strokeLinecap='round'
-								strokeLinejoin='round'>
+							<svg className='w-7 h-7 text-emerald-500' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
 								<path d='M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' />
 							</svg>
 						</div>
@@ -921,24 +762,17 @@ export default function AskAriPage() {
 									Talk to an expert — it&apos;s free
 								</p>
 								<p className='text-[13px] text-gray-500 max-w-sm mx-auto leading-relaxed mb-6'>
-									Get a real human answer on your clarity
-									score, your AI visibility, your homepage
-									copy, or anything about your website
-									strategy.
+									Get a real human answer on your clarity score, your AI visibility, your homepage copy, or anything about your website strategy.
 								</p>
 								<div className='flex flex-col items-center gap-2 text-[12px] text-gray-400 mb-6'>
 									{[
 										'Why is my AI clarity score lower than expected?',
-										"How do I improve my site's structure for AI tools?",
+										'How do I improve my site\'s structure for AI tools?',
 										'Can you review my homepage and suggest improvements?',
 										'What does "AI extractability" mean for my business?',
 									].map((example) => (
-										<div
-											key={example}
-											className='flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 max-w-sm w-full text-left text-gray-500'>
-											<span className='text-emerald-400 flex-shrink-0'>
-												→
-											</span>
+										<div key={example} className='flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 max-w-sm w-full text-left text-gray-500'>
+											<span className='text-emerald-400 flex-shrink-0'>→</span>
 											<span>{example}</span>
 										</div>
 									))}
@@ -946,20 +780,12 @@ export default function AskAriPage() {
 								<button
 									onClick={() => setShowForm(true)}
 									className='inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors'>
-									<svg
-										className='w-3.5 h-3.5'
-										viewBox='0 0 12 12'
-										fill='none'
-										stroke='currentColor'
-										strokeWidth='2'
-										strokeLinecap='round'>
+									<svg className='w-3.5 h-3.5' viewBox='0 0 12 12' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
 										<path d='M6 1v10M1 6h10' />
 									</svg>
 									Ask your first question
 								</button>
-								<p className='text-[11px] text-gray-400 mt-3'>
-									Expert reply within 24–48 hours
-								</p>
+								<p className='text-[11px] text-gray-400 mt-3'>Expert reply within 24–48 hours</p>
 							</>
 						) : (
 							<>
@@ -967,8 +793,7 @@ export default function AskAriPage() {
 									No {activeTab} questions
 								</p>
 								<p className='text-[13px] text-gray-400'>
-									Switch to the All tab to see all your
-									threads.
+									Switch to the All tab to see all your threads.
 								</p>
 							</>
 						)}
