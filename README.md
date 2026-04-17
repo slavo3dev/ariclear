@@ -115,10 +115,10 @@ In Next.js 16, route params are **synchronous** (they reverted the async change 
 ```typescript
 // ✅ Correct — Next.js 16
 export async function GET(
- request: NextRequest,
- { params }: { params: { id: string } },
+	request: NextRequest,
+	{ params }: { params: { id: string } },
 ) {
- const { id } = params; // direct access, no await needed
+	const { id } = params; // direct access, no await needed
 }
 ```
 
@@ -143,16 +143,14 @@ Authentication is checked at the API layer using `supabase.auth.getUser()`. Ever
 
 ```typescript
 const {
- data: { user },
- error: authError,
+	data: { user },
+	error: authError,
 } = await supabase.auth.getUser();
 
 if (authError || !user) {
- return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+	return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
 ```
-
----
 
 ## Database (Supabase)
 
@@ -234,13 +232,13 @@ Components are shared across the monorepo via the `packages/components` package.
 
 ```typescript
 import {
- Navbar,
- SiteFooter,
- Button,
- AuthModal,
- ScanResultsEnhanced,
- usePreorder,
- useAuth,
+	Navbar,
+	SiteFooter,
+	Button,
+	AuthModal,
+	ScanResultsEnhanced,
+	usePreorder,
+	useAuth,
 } from '@ariclear/components';
 ```
 
