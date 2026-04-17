@@ -1,6 +1,7 @@
 // app/api/ask-ari/comment/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
@@ -20,18 +21,25 @@ async function getServerClient() {
 	);
 }
 
+function getServiceClient() {
+	const url = getUrl();
+	const key = process.env.SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY ?? '';
+	if (!url || !key) return null;
+	return createClient(url, key, {
+		auth: { autoRefreshToken: false, persistSession: false },
+	});
+}
+
 function extractMessage(err: unknown): string {
 	if (err instanceof Error) return err.message;
-	if (typeof err === 'object' && err !== null && 'message' in err) {
+	if (typeof err === 'object' && err !== null && 'message' in err)
 		return String((err as { message: unknown }).message);
-	}
 	return JSON.stringify(err);
 }
 
 export async function POST(req: NextRequest) {
 	try {
 		const serverClient = await getServerClient();
-
 		const {
 			data: { user },
 			error: authError,
@@ -74,6 +82,15 @@ export async function POST(req: NextRequest) {
 				JSON.stringify(insertError, null, 2),
 			);
 			throw insertError;
+		}
+
+		// Flip question back to "waiting" — user asked a follow-up, needs expert attention
+		const service = getServiceClient();
+		if (service) {
+			await service
+				.from('questions')
+				.update({ status: 'waiting' })
+				.eq('id', question_id);
 		}
 
 		return NextResponse.json({ comment: data }, { status: 201 });
