@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth, Navbar, SiteFooter } from '@ariclear/components';
 import { supabaseAriClear } from '@ariclear/lib';
+import Link from 'next/link';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -62,20 +63,19 @@ function getInitials(name: string) {
 		.slice(0, 2);
 }
 
-// ── Admin check via Supabase `admin_users` table ──────────────────────────────
-// This is server-authoritative. A non-admin user gets null back from the DB
-// (RLS only lets users read their own row) so isAdmin stays false.
-// The admin button never appears in the DOM for regular users — no env var
-// leakage, no client-side bypass possible.
-async function checkIsAdmin(userId: string): Promise<boolean> {
-	const { data, error } = await supabaseAriClear
-		.from('admin_users')
-		.select('id')
-		.eq('user_id', userId)
-		.eq('is_active', true)
-		.maybeSingle();
-	if (error) return false;
-	return !!data;
+// ── Admin check via server route ──────────────────────────────────────────────
+// supabaseAriClear is an unauthenticated client — calling it directly causes
+// a 401. We use a server route instead so the session JWT from cookies is
+// attached and RLS can correctly identify the user's admin_users row.
+async function checkIsAdmin(): Promise<boolean> {
+	try {
+		const res = await fetch('/api/ask-ari/check-admin');
+		if (!res.ok) return false;
+		const { isAdmin } = await res.json();
+		return !!isAdmin;
+	} catch {
+		return false;
+	}
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -499,7 +499,7 @@ export default function AskAriPage() {
 
 	useEffect(() => {
 		if (!authUser) { setIsAdmin(false); return; }
-		checkIsAdmin(authUser.id).then(setIsAdmin);
+		checkIsAdmin().then(setIsAdmin);
 	}, [authUser]);
 
 	// ── Fetch questions ────────────────────────────────────────────────────────
@@ -663,17 +663,24 @@ export default function AskAriPage() {
 					</div>
 
 					<div className='flex items-center gap-2 flex-shrink-0 ml-4'>
-						{/* Admin toggle — only in DOM when isAdmin is true (DB-confirmed) */}
+						{/* Admin controls — only in DOM when isAdmin is true (DB-confirmed) */}
 						{isAdmin && (
-							<button
-								onClick={() => setAdminMode((v) => !v)}
-								className={`text-[11px] font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-									adminMode
-										? 'bg-emerald-600 text-white border-emerald-600'
-										: 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-								}`}>
-								{adminMode ? '★ Replying as Ari' : 'Admin mode'}
-							</button>
+							<>
+								<Link
+									href='/admin/ask-ari'
+									className='text-[11px] font-medium px-3 py-1.5 rounded-lg border border-choco-200 bg-white text-choco-700 hover:bg-choco-50 transition-colors'>
+									Admin portal →
+								</Link>
+								<button
+									onClick={() => setAdminMode((v) => !v)}
+									className={`text-[11px] font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+										adminMode
+											? 'bg-emerald-600 text-white border-emerald-600'
+											: 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+									}`}>
+									{adminMode ? '★ Replying as Ari' : 'Admin mode'}
+								</button>
+							</>
 						)}
 						<button
 							onClick={() => { setShowForm(true); setActiveTab('all'); }}
