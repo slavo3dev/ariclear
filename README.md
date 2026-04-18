@@ -18,7 +18,6 @@ AriClear is a **Next.js 16** web application built as a monorepo. It analyzes we
 | Deployment      | Vercel                    |
 | Package manager | pnpm (workspace monorepo) |
 
----
 
 ## Monorepo Structure
 
