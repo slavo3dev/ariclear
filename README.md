@@ -100,8 +100,6 @@ pnpm dev
 
 App will be available at `http://localhost:3000`.
 
----
-
 ## Key Architectural Decisions
 
 ### Next.js 16 — params handling
