@@ -52,8 +52,6 @@ ariclear/
                 └── server.ts
 ```
 
----
-
 ## Getting Started
 
 ### Prerequisites
