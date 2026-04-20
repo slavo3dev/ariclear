@@ -214,8 +214,6 @@ https://yourdomain.com/api/webhooks/stripe
 
 Set `STRIPE_WEBHOOK_SECRET` to the signing secret Stripe provides.
 
----
-
 ## Shared Component Library (`@ariclear/components`)
 
 Components are shared across the monorepo via the `packages/components` package. Import like this:
