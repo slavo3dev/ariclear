@@ -175,8 +175,6 @@ if (authError || !user) {
 | `GET`  | `/api/scans/[id]`   | Get a single scan by ID              |
 | `GET`  | `/api/subscription` | Get current user's subscription info |
 
----
-
 ## Subscription Tiers
 
 Tier gates are enforced via the `/api/subscription` endpoint and checked on the frontend. Current tiers:
