@@ -165,8 +165,6 @@ if (authError || !user) {
 
 **Row Level Security (RLS)** is enabled — users can only read and write their own scans.
 
----
-
 ## API Routes
 
 | Method | Route               | Description                          |
