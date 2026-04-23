@@ -4,8 +4,6 @@
 
 AriClear is a **Next.js 16** web application built as a monorepo. It analyzes websites for human clarity and AI-SEO (GEO) visibility, giving founders and agencies a combined score with specific, actionable feedback.
 
----
-
 ## Tech Stack
 
 | Layer           | Technology                |
