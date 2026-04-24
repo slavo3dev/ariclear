@@ -232,8 +232,6 @@ import {
 
 When adding a new shared component, export it from `packages/components/index.ts`.
 
----
-
 ## Scan Analysis Flow
 
 ```
