@@ -122,12 +122,13 @@ function CommentItem({ comment }: { comment: Comment }) {
 		<div className='flex gap-2.5'>
 			<Avatar name={comment.author_name} isExpert={comment.is_expert} size='sm' />
 			<div className='flex-1 min-w-0'>
-				<div className='flex items-center gap-2 mb-0.5'>
+				<div className='flex items-center gap-2 mb-0.5 flex-wrap'>
 					<span className='text-[12px] font-medium text-gray-900'>
-						{comment.is_expert ? 'Ari (Expert)' : comment.author_name}
+						{comment.author_name}
 					</span>
 					{comment.is_expert && (
-						<span className='text-[10px] font-medium bg-emerald-100 text-emerald-700 px-1.5 py-0 rounded'>
+						<span className='inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full'>
+							<span className='w-1 h-1 rounded-full bg-emerald-500 inline-block' />
 							Expert
 						</span>
 					)}
@@ -141,11 +142,19 @@ function CommentItem({ comment }: { comment: Comment }) {
 
 function ExpertReply({ comment }: { comment: Comment }) {
 	return (
-		<div className='border-l-2 border-emerald-500 pl-3.5 py-2 bg-emerald-50/40 rounded-r-lg'>
-			<div className='flex items-center gap-1.5 mb-1.5'>
-				<span className='w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block' />
-				<span className='text-[11px] font-semibold text-emerald-700 uppercase tracking-wide'>Expert reply</span>
-				<span className='text-[11px] text-gray-400 ml-1'>{formatDate(comment.created_at)}</span>
+		<div className='border-l-2 border-emerald-500 pl-3.5 py-3 bg-emerald-50/40 rounded-r-lg'>
+			<div className='flex items-center gap-2 mb-2 flex-wrap'>
+				<div className='w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0'>
+					<span className='text-[9px] font-bold text-emerald-700'>Ari</span>
+				</div>
+				<span className='text-[13px] font-semibold text-emerald-800'>
+					{comment.author_name}
+				</span>
+				<span className='inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-600 text-white px-2 py-0.5 rounded-full'>
+					<span className='w-1 h-1 rounded-full bg-white inline-block' />
+					Expert answer
+				</span>
+				<span className='text-[11px] text-gray-400'>{formatDate(comment.created_at)}</span>
 			</div>
 			<p className='text-[13px] text-gray-700 leading-relaxed'>{comment.content}</p>
 		</div>
@@ -543,6 +552,12 @@ export default function AskAriPage() {
 					if (prev.find((q) => q.id === newQ.id)) return prev;
 					return [{ ...newQ, comments: [] }, ...prev];
 				});
+			})
+			.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'questions' }, (payload) => {
+				const updated = payload.new as Question;
+				setQuestions((prev) =>
+					prev.map((q) => q.id === updated.id ? { ...q, status: updated.status } : q),
+				);
 			})
 			.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload) => {
 				const newComment = payload.new as Comment;
