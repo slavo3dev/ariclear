@@ -258,8 +258,6 @@ POST /api/scans (save to Supabase)
 
 Target scan time: **under 10 seconds**.
 
----
-
 ## Common Issues & Fixes
 
 **`params.id` is `undefined` in API route**
