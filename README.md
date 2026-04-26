@@ -272,8 +272,6 @@ Check that `user_id` in the `scans` table matches the logged-in user's ID. RLS w
 **Stripe webhook 400 error**
 The raw request body must not be parsed before signature verification. Ensure you're using `request.text()` (not `request.json()`) in the webhook handler.
 
----
-
 ## Scripts
 
 ```bash
