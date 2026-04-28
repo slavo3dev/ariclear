@@ -284,3 +284,4 @@ pnpm type-check   # Run TypeScript checks
 ## Part of Prototype.NEXT
 
 [www.prototypenext.com]("https://www.prototypenext.com")
+[Slavo.io]("https://www.slavo.io")
