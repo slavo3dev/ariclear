@@ -1,4 +1,4 @@
-# AriClear — Technical README
+# AriClear
 
 ## Overview
 
