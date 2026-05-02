@@ -280,5 +280,3 @@ pnpm build        # Production build
 pnpm lint         # Run ESLint
 pnpm type-check   # Run TypeScript checks
 ```
-
-**Last updated: April 2026\_**
