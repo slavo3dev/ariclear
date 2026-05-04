@@ -280,3 +280,5 @@ pnpm build        # Production build
 pnpm lint         # Run ESLint
 pnpm type-check   # Run TypeScript checks
 ```
+
+## Part of Prototype.NEXT
