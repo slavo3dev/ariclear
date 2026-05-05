@@ -1,8 +1,4 @@
 // app/api/admin/ask-ari/questions/route.ts
-//
-// GET — returns ALL questions from ALL users, enriched with user emails.
-// Only callable by users confirmed in the admin_users table.
-// Uses service role to bypass RLS.
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -11,19 +7,28 @@ import { createServerClient } from '@supabase/ssr';
 
 async function getServerClient() {
 	const cookieStore = await cookies();
+	const url = (process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL ?? '').replace(
+		/\/$/,
+		'',
+	);
 	return createServerClient(
-		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!,
+		url,
 		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_ANON_KEY!,
 		{ cookies: { get: (name) => cookieStore.get(name)?.value } },
 	);
 }
 
 function getServiceClient() {
-	return createClient(
-		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!,
-		process.env.SUPABASE_SERVICE_ROLE_KEY!,
-		{ auth: { autoRefreshToken: false, persistSession: false } },
+	const url = (process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL ?? '').replace(
+		/\/$/,
+		'',
 	);
+	const key = process.env.SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY;
+	if (!url || !key)
+		throw new Error('Missing SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY env var');
+	return createClient(url, key, {
+		auth: { autoRefreshToken: false, persistSession: false },
+	});
 }
 
 export async function GET() {
