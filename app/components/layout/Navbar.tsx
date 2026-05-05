@@ -8,6 +8,8 @@ import { Button } from '@ariclear/components';
 import { usePreorder, useAuth, AuthModal } from '@ariclear/components';
 import { useRouter } from 'next/navigation';
 
+const CALENDLY_URL = 'https://calendly.com/slavo3/30min';
+
 type SubscriptionInfo = {
 	tier: string;
 	websites_limit: number;
@@ -252,6 +254,14 @@ export function Navbar() {
 							onClick={handleEarlyAccess}>
 							Request Trial
 						</Button>
+
+						<a
+							href={CALENDLY_URL}
+							target='_blank'
+							rel='noopener noreferrer'
+							className='inline-flex items-center gap-1.5 text-xs text-choco-600 hover:text-choco-900 transition'>
+							📅 Book a call
+						</a>
 
 						{user ? (
 							<div className='relative' ref={dropdownRef}>
@@ -618,6 +628,14 @@ export function Navbar() {
 										Request Trial
 									</Button>
 								</div>
+
+								<a
+									href={CALENDLY_URL}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='flex items-center justify-center gap-2 w-full rounded-full border border-choco-200 py-2.5 text-sm text-choco-700 hover:text-choco-900 hover:border-choco-400 transition'>
+									📅 Book a 30-min call
+								</a>
 
 								{/* User info card — mobile */}
 								{user && subscription && (

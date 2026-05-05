@@ -4,8 +4,9 @@
 import { useState } from 'react';
 import type { FormEventHandler } from 'react';
 import { Button } from '@ariclear/components';
-import { preorderRequest } from '@ariclear/helpers';
 import { toast } from 'react-hot-toast';
+
+const CALENDLY_URL = 'https://calendly.com/slavo3/30min';
 
 const TIER_CONFIG = {
 	pro: {
@@ -28,7 +29,7 @@ const TIER_CONFIG = {
 	},
 } as const;
 
-type Tier = keyof typeof TIER_CONFIG | null;
+type Tier = keyof typeof TIER_CONFIG;
 
 export function PreorderForm({
 	onSuccess,
@@ -38,6 +39,7 @@ export function PreorderForm({
 	tier?: string | null;
 }) {
 	const config = TIER_CONFIG[(tier as Tier) ?? 'pro'] ?? TIER_CONFIG.pro;
+	const resolvedTier = (tier as Tier) ?? 'pro';
 
 	const [email, setEmail] = useState('');
 	const [url, setUrl] = useState('');
@@ -53,10 +55,28 @@ export function PreorderForm({
 		setSubmitted(false);
 
 		try {
-			await preorderRequest({
-				email,
-				url: url || undefined,
+			const res = await fetch('/api/plan-request', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					email: email.trim(),
+					plan: resolvedTier,
+					websites: Number(websites),
+					url: url.trim() || undefined,
+					sourceUrl: window.location.href,
+				}),
 			});
+
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				// Treat a duplicate as a soft success (they already requested)
+				if (res.status === 409 || data?.error?.includes('duplicate')) {
+					toast("You've already requested access 👀", { icon: 'ℹ️' });
+					onSuccess?.();
+					return;
+				}
+				throw new Error(data?.error ?? 'Something went wrong');
+			}
 
 			setTimeout(() => {
 				setLoading(false);
@@ -69,15 +89,11 @@ export function PreorderForm({
 				onSuccess?.();
 			}, 800);
 		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : 'Something went wrong';
-
-			if (message === 'EMAIL_EXISTS') {
-				toast("You've already requested access 👀", { icon: 'ℹ️' });
-			} else {
-				toast.error('Something went wrong. Please try again.');
-			}
-
+			toast.error(
+				error instanceof Error
+					? error.message
+					: 'Something went wrong. Please try again.',
+			);
 			setLoading(false);
 		}
 	};
@@ -170,6 +186,21 @@ export function PreorderForm({
 				disabled={loading}>
 				{loading ? 'Submitting...' : `Request ${config.label} access`}
 			</Button>
+
+			{/* Calendly */}
+			<div className='flex items-center gap-2'>
+				<div className='flex-1 h-px bg-choco-700' />
+				<span className='text-[11px] text-choco-500'>or</span>
+				<div className='flex-1 h-px bg-choco-700' />
+			</div>
+			<a
+				href={CALENDLY_URL}
+				target='_blank'
+				rel='noopener noreferrer'
+				className='flex items-center justify-center gap-2 w-full rounded-full border border-choco-600 py-2.5 text-sm font-medium text-choco-200 hover:border-choco-400 hover:text-cream-50 transition-colors'>
+				<span>📅</span>
+				Book a 30-min call instead
+			</a>
 
 			{/* Submitted message */}
 			{submitted && (
