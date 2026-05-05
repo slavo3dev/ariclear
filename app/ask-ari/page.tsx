@@ -1,21 +1,10 @@
 'use client';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // app/ask-ari/page.tsx
-//
-// Changes in this version:
-//   • Admin status loaded from `admin_users` Supabase table — never from env vars
-//   • Admin button is completely absent from DOM for non-admin users
-//   • Navbar is provided by your layout.tsx (no duplicate header here)
-//   • Input fields have rich descriptive placeholders + helper hints
-//   • Waiting banner copy improved
-//   • Empty state copy improved
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth, Navbar, SiteFooter } from '@ariclear/components';
 import { supabaseAriClear } from '@ariclear/lib';
-import Link from 'next/link';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -35,6 +24,7 @@ interface Comment {
 interface Question {
 	id: string;
 	user_id: string;
+	user_email?: string;
 	title: string;
 	url: string | null;
 	message: string;
@@ -43,11 +33,10 @@ interface Question {
 	comments: Comment[];
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
-	const d = new Date(iso);
-	return d.toLocaleDateString('en-GB', {
+	return new Date(iso).toLocaleDateString('en-GB', {
 		day: 'numeric',
 		month: 'short',
 		year: 'numeric',
@@ -63,16 +52,32 @@ function getInitials(name: string) {
 		.slice(0, 2);
 }
 
-// ── Admin check via server route ──────────────────────────────────────────────
-// supabaseAriClear is an unauthenticated client — calling it directly causes
-// a 401. We use a server route instead so the session JWT from cookies is
-// attached and RLS can correctly identify the user's admin_users row.
 async function checkIsAdmin(): Promise<boolean> {
 	try {
 		const res = await fetch('/api/ask-ari/check-admin');
 		if (!res.ok) return false;
 		const { isAdmin } = await res.json();
 		return !!isAdmin;
+	} catch {
+		return false;
+	}
+}
+
+async function toggleQuestionStatus(
+	questionId: string,
+	current: QuestionStatus,
+): Promise<boolean> {
+	const newStatus = current === 'answered' ? 'waiting' : 'answered';
+	try {
+		const res = await fetch('/api/admin/ask-ari/status', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				question_id: questionId,
+				status: newStatus,
+			}),
+		});
+		return res.ok;
 	} catch {
 		return false;
 	}
@@ -118,6 +123,33 @@ function Avatar({
 	);
 }
 
+function ExpertReply({ comment }: { comment: Comment }) {
+	return (
+		<div className='border-l-2 border-emerald-500 pl-3.5 py-3 bg-emerald-50/40 rounded-r-lg'>
+			<div className='flex items-center gap-2 mb-2 flex-wrap'>
+				<div className='w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0'>
+					<span className='text-[9px] font-bold text-emerald-700'>
+						Ari
+					</span>
+				</div>
+				<span className='text-[13px] font-semibold text-emerald-800'>
+					{comment.author_name}
+				</span>
+				<span className='inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-600 text-white px-2 py-0.5 rounded-full'>
+					<span className='w-1 h-1 rounded-full bg-white inline-block' />
+					Expert answer
+				</span>
+				<span className='text-[11px] text-gray-400'>
+					{formatDate(comment.created_at)}
+				</span>
+			</div>
+			<p className='text-[13px] text-gray-700 leading-relaxed'>
+				{comment.content}
+			</p>
+		</div>
+	);
+}
+
 function CommentItem({ comment }: { comment: Comment }) {
 	return (
 		<div className='flex gap-2.5'>
@@ -149,33 +181,6 @@ function CommentItem({ comment }: { comment: Comment }) {
 	);
 }
 
-function ExpertReply({ comment }: { comment: Comment }) {
-	return (
-		<div className='border-l-2 border-emerald-500 pl-3.5 py-3 bg-emerald-50/40 rounded-r-lg'>
-			<div className='flex items-center gap-2 mb-2 flex-wrap'>
-				<div className='w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0'>
-					<span className='text-[9px] font-bold text-emerald-700'>
-						Ari
-					</span>
-				</div>
-				<span className='text-[13px] font-semibold text-emerald-800'>
-					{comment.author_name}
-				</span>
-				<span className='inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-600 text-white px-2 py-0.5 rounded-full'>
-					<span className='w-1 h-1 rounded-full bg-white inline-block' />
-					Expert answer
-				</span>
-				<span className='text-[11px] text-gray-400'>
-					{formatDate(comment.created_at)}
-				</span>
-			</div>
-			<p className='text-[13px] text-gray-700 leading-relaxed'>
-				{comment.content}
-			</p>
-		</div>
-	);
-}
-
 function WaitingBanner() {
 	return (
 		<div className='flex items-start gap-2.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5'>
@@ -197,8 +202,6 @@ function WaitingBanner() {
 		</div>
 	);
 }
-
-// ─── Field wrapper ────────────────────────────────────────────────────────────
 
 function Field({
 	label,
@@ -224,60 +227,37 @@ function Field({
 	);
 }
 
-// ─── Reply input ──────────────────────────────────────────────────────────────
+// ─── Admin reply input ────────────────────────────────────────────────────────
 
-function ReplyInput({
+function AdminReplyInput({
 	questionId,
-	userId,
-	userName,
-	isAdmin,
-	supportMode,
 	onSent,
 }: {
 	questionId: string;
-	userId: string;
-	userName: string;
-	isAdmin: boolean;
-	supportMode: boolean;
 	onSent: (comment: Comment) => void;
 }) {
 	const [value, setValue] = useState('');
 	const [submitting, setSubmitting] = useState(false);
 
-	async function handleSend(mode: 'expert' | 'user') {
+	async function handleSend() {
 		const text = value.trim();
 		if (!text || submitting) return;
 		setSubmitting(true);
 		try {
-			if (mode === 'expert') {
-				const res = await fetch('/api/ask-ari/reply', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						question_id: questionId,
-						content: text,
-					}),
-				});
-				if (!res.ok) throw new Error('Failed to post expert reply');
-				const data = await res.json();
-				onSent(data.comment);
-			} else {
-				const res = await fetch('/api/ask-ari/comment', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						question_id: questionId,
-						author_name: userName,
-						content: text,
-					}),
-				});
-				if (!res.ok) throw new Error('Failed to post comment');
-				const data = await res.json();
-				onSent(data.comment as Comment);
-			}
+			const res = await fetch('/api/ask-ari/reply', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					question_id: questionId,
+					content: text,
+				}),
+			});
+			if (!res.ok) throw new Error('Failed');
+			const data = await res.json();
+			onSent(data.comment);
 			setValue('');
 		} catch (err) {
-			console.error('Failed to post:', err);
+			console.error(err);
 		} finally {
 			setSubmitting(false);
 		}
@@ -289,46 +269,16 @@ function ReplyInput({
 				type='text'
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
-				onKeyDown={(e) =>
-					e.key === 'Enter' && !isAdmin && handleSend('user')
-				}
-				placeholder={
-					isAdmin
-						? supportMode
-							? 'Type reply — choose Ari (expert) or send as yourself →'
-							: 'Write a comment as yourself, or enable Support mode to reply as Ari…'
-						: 'Write a follow-up question or add more context…'
-				}
-				className='flex-1 text-[13px] border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors'
+				onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+				placeholder='Reply as Ari…'
+				className='flex-1 text-[13px] border border-emerald-200 rounded-lg px-3 py-2 bg-emerald-50/30 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors'
 			/>
-			{isAdmin ? (
-				<>
-					<button
-						onClick={() => handleSend('expert')}
-						disabled={!value.trim() || submitting || !supportMode}
-						title={
-							!supportMode
-								? 'Enable Support mode to reply as Ari'
-								: ''
-						}
-						className='px-3 py-2 text-[11px] font-medium rounded-lg bg-emerald-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors flex-shrink-0'>
-						{submitting ? '…' : 'Reply as Ari'}
-					</button>
-					<button
-						onClick={() => handleSend('user')}
-						disabled={!value.trim() || submitting}
-						className='px-3 py-2 text-[11px] font-medium rounded-lg bg-gray-200 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-300 transition-colors flex-shrink-0'>
-						{submitting ? '…' : 'Send as me'}
-					</button>
-				</>
-			) : (
-				<button
-					onClick={() => handleSend('user')}
-					disabled={!value.trim() || submitting}
-					className='px-4 py-2 text-[12px] font-medium rounded-lg bg-gray-900 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex-shrink-0'>
-					{submitting ? 'Sending…' : 'Send'}
-				</button>
-			)}
+			<button
+				onClick={handleSend}
+				disabled={!value.trim() || submitting}
+				className='px-4 py-2 text-[12px] font-medium rounded-lg bg-emerald-600 text-white disabled:opacity-30 hover:bg-emerald-700 transition-colors flex-shrink-0'>
+				{submitting ? '…' : 'Reply as Ari'}
+			</button>
 		</div>
 	);
 }
@@ -339,26 +289,40 @@ function ThreadCard({
 	question,
 	isOpen,
 	isAdmin,
-	supportMode,
-	userId,
+	adminView,
 	userName,
 	onToggle,
 	onCommentAdded,
+	onStatusChanged,
 }: {
 	question: Question;
 	isOpen: boolean;
 	isAdmin: boolean;
-	supportMode: boolean;
-	userId: string;
+	adminView: boolean;
 	userName: string;
 	onToggle: () => void;
 	onCommentAdded: (qId: string, comment: Comment) => void;
+	onStatusChanged?: (qId: string, status: QuestionStatus) => void;
 }) {
+	const [togglingStatus, setTogglingStatus] = useState(false);
 	const expertReply = question.comments.find((c) => c.is_expert);
-	const threadComments = expertReply
-		? question.comments.filter((c) => c.id !== expertReply.id)
-		: [];
+	const threadComments = question.comments.filter((c) => !c.is_expert);
 	const commentCount = question.comments.length;
+	const displayName = adminView
+		? (question.user_email ?? userName)
+		: userName;
+
+	async function handleStatusToggle(e: React.MouseEvent) {
+		e.stopPropagation();
+		setTogglingStatus(true);
+		const ok = await toggleQuestionStatus(question.id, question.status);
+		if (ok)
+			onStatusChanged?.(
+				question.id,
+				question.status === 'answered' ? 'waiting' : 'answered',
+			);
+		setTogglingStatus(false);
+	}
 
 	return (
 		<div
@@ -366,7 +330,7 @@ function ThreadCard({
 			<button
 				onClick={onToggle}
 				className='w-full flex items-center gap-3 px-4 py-3.5 text-left'>
-				<Avatar name={userName} size='md' />
+				<Avatar name={displayName} size='md' />
 				<div className='flex-1 min-w-0'>
 					<p className='text-[14px] font-medium text-gray-900 truncate'>
 						{question.title}
@@ -376,6 +340,11 @@ function ThreadCard({
 						<span className='text-[11px] text-gray-400'>
 							{formatDate(question.created_at)}
 						</span>
+						{adminView && question.user_email && (
+							<span className='text-[11px] text-gray-400 truncate max-w-[180px]'>
+								{question.user_email}
+							</span>
+						)}
 						{commentCount > 0 && (
 							<span className='text-[11px] text-gray-400'>
 								{commentCount} comment
@@ -437,16 +406,33 @@ function ThreadCard({
 						</div>
 					)}
 
-					<ReplyInput
-						questionId={question.id}
-						userId={userId}
-						userName={userName}
-						isAdmin={isAdmin}
-						supportMode={supportMode}
-						onSent={(comment) =>
-							onCommentAdded(question.id, comment)
-						}
-					/>
+					{/* Admin-only: reply box + status toggle */}
+					{isAdmin && adminView && (
+						<>
+							<AdminReplyInput
+								questionId={question.id}
+								onSent={(comment) =>
+									onCommentAdded(question.id, comment)
+								}
+							/>
+							<div className='flex justify-end pt-1'>
+								<button
+									onClick={handleStatusToggle}
+									disabled={togglingStatus}
+									className={`text-[11px] font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-40 ${
+										question.status === 'answered'
+											? 'border-amber-200 text-amber-700 hover:bg-amber-50'
+											: 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+									}`}>
+									{togglingStatus
+										? '…'
+										: question.status === 'answered'
+											? 'Mark as open'
+											: 'Mark as answered'}
+								</button>
+							</div>
+						</>
+					)}
 				</div>
 			)}
 		</div>
@@ -482,10 +468,6 @@ function NewQuestionForm({
 		}
 		setSubmitting(true);
 		try {
-			// POST to server route — session is read from cookies server-side,
-			// so the Supabase insert carries the user's JWT and RLS passes.
-			// Direct supabaseAriClear.from().insert() causes 401 because the
-			// module-level client has no session attached.
 			const res = await fetch('/api/ask-ari/question', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -497,7 +479,7 @@ function NewQuestionForm({
 			});
 			if (!res.ok) {
 				const err = await res.json();
-				throw new Error(err.error ?? 'Failed to submit question');
+				throw new Error(err.error ?? 'Failed');
 			}
 			const { question } = await res.json();
 			onCreated({ ...question, comments: [] });
@@ -527,11 +509,10 @@ function NewQuestionForm({
 					Ask a new question
 				</h2>
 			</div>
-
 			<div className='space-y-4'>
 				<Field
 					label='Question title *'
-					hint='Keep it short and specific — this is what you see in the list. E.g. "Why is my AI clarity score low despite clear headings?"'>
+					hint='Keep it short and specific. E.g. "Why is my AI clarity score low despite clear headings?"'>
 					<input
 						type='text'
 						value={title}
@@ -540,42 +521,38 @@ function NewQuestionForm({
 						className='w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors'
 					/>
 				</Field>
-
 				<Field
 					label='Website URL'
-					hint='Paste the specific page you want reviewed — our expert will open it directly. Leave blank if your question is general.'>
+					hint='Paste the specific page you want reviewed. Leave blank if your question is general.'>
 					<input
 						type='url'
 						value={url}
 						onChange={(e) => setUrl(e.target.value)}
-						placeholder='https://yourwebsite.com/homepage  (or leave blank if not about a specific page)'
+						placeholder='https://yourwebsite.com/homepage'
 						className='w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors'
 					/>
 				</Field>
-
 				<Field
 					label='Describe your question *'
-					hint="The more detail, the better the answer. Include what you expected, what you saw, and anything you've already tried.">
+					hint="Include what you expected, what you saw, and anything you've already tried.">
 					<textarea
 						value={message}
 						onChange={(e) => setMessage(e.target.value)}
 						placeholder={
-							'Tell us what\'s happening. For example:\n\u2022 "My scan shows a low structure score but I have clear H1/H2 headings \u2014 what am I missing?"\n\u2022 "I\'m not sure if my meta description is helping or hurting my AI clarity score"\n\u2022 "Can you explain what \'AI extractability\' means and how to fix it on my site?"'
+							'Tell us what\'s happening.\n• "My scan shows a low structure score but I have clear H1/H2 headings — what am I missing?"\n• "Can you explain what \'AI extractability\' means and how to fix it on my site?"'
 						}
 						rows={5}
 						className='w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors resize-y'
 					/>
 				</Field>
-
 				{error && (
 					<p className='text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2'>
 						{error}
 					</p>
 				)}
-
 				<div className='flex items-center justify-between pt-1'>
 					<p className='text-[11px] text-gray-400'>
-						* Required fields. Expert reply within 24–48 hours.
+						* Required. Expert reply within 24–48 hours.
 					</p>
 					<div className='flex items-center gap-2'>
 						<button
@@ -601,16 +578,15 @@ function NewQuestionForm({
 export default function AskAriPage() {
 	const { user: authUser, loading: authLoading } = useAuth();
 	const [questions, setQuestions] = useState<Question[]>([]);
-	const [loading, setLoading] = useState(false); // false until we confirm a user exists
+	const [loading, setLoading] = useState(false);
 	const [openIds, setOpenIds] = useState<Set<string>>(new Set());
 	const [showForm, setShowForm] = useState(false);
 	const [activeTab, setActiveTab] = useState<'all' | 'open' | 'answered'>(
 		'all',
 	);
-	// isAdmin is ONLY true if Supabase confirms a row exists in admin_users for this user.
-	// It is never derived from env vars, JWT claims, or any client-passed data.
 	const [isAdmin, setIsAdmin] = useState(false);
-	const [supportMode, setSupportMode] = useState(false); // when true, posts as Ari (expert)
+	const [adminView, setAdminView] = useState(false);
+	const [search, setSearch] = useState('');
 	const channelRef = useRef<RealtimeChannel | null>(null);
 
 	const user = authUser
@@ -625,8 +601,6 @@ export default function AskAriPage() {
 			}
 		: null;
 
-	// ── Admin check ────────────────────────────────────────────────────────────
-
 	useEffect(() => {
 		if (!authUser) {
 			setIsAdmin(false);
@@ -635,40 +609,43 @@ export default function AskAriPage() {
 		checkIsAdmin().then(setIsAdmin);
 	}, [authUser]);
 
-	// ── Fetch questions ────────────────────────────────────────────────────────
-
 	const fetchQuestions = useCallback(async () => {
 		if (!authUser?.id) return;
 		setLoading(true);
 		try {
-			// GET via server route — session is read from cookies server-side
-			// so the Supabase query carries the user's JWT and RLS passes.
-			const res = await fetch('/api/ask-ari/questions');
-			if (!res.ok) throw new Error('Failed to fetch questions');
+			const endpoint = adminView
+				? '/api/admin/ask-ari/questions'
+				: '/api/ask-ari/questions';
+			const res = await fetch(endpoint);
+			if (!res.ok) throw new Error('Failed to fetch');
 			const { questions: data } = await res.json();
-			const normalised = (data ?? []).map(
-				(q: Question & { comments: Comment[] }) => ({
-					...q,
-					comments: (q.comments ?? []).sort(
-						(a, b) =>
-							new Date(a.created_at).getTime() -
-							new Date(b.created_at).getTime(),
-					),
-				}),
-			);
+			const normalised = (data ?? []).map((q: Question) => ({
+				...q,
+				comments: (q.comments ?? []).sort(
+					(a: Comment, b: Comment) =>
+						new Date(a.created_at).getTime() -
+						new Date(b.created_at).getTime(),
+				),
+			}));
 			setQuestions(normalised);
 		} catch (err) {
-			console.error('Failed to fetch questions:', err);
+			console.error(err);
 		} finally {
 			setLoading(false);
 		}
-	}, [authUser?.id]);
+	}, [authUser?.id, adminView]);
 
 	useEffect(() => {
 		fetchQuestions();
 	}, [fetchQuestions]);
 
-	// ── Real-time ──────────────────────────────────────────────────────────────
+	// Reset state when switching views
+	useEffect(() => {
+		setOpenIds(new Set());
+		setSearch('');
+		setActiveTab('all');
+		setShowForm(false);
+	}, [adminView]);
 
 	useEffect(() => {
 		if (!authUser?.id) return;
@@ -727,9 +704,7 @@ export default function AskAriPage() {
 		return () => {
 			channelRef.current?.unsubscribe();
 		};
-	}, [authUser?.id]); // ← stable primitive
-
-	// ── Helpers ────────────────────────────────────────────────────────────────
+	}, [authUser?.id]);
 
 	function toggleThread(id: string) {
 		setOpenIds((prev) => {
@@ -745,8 +720,6 @@ export default function AskAriPage() {
 				q.id === questionId
 					? {
 							...q,
-							// Expert reply → answered. User follow-up → back to waiting
-							// so admin knows there's a new question to respond to
 							status: comment.is_expert ? 'answered' : 'waiting',
 							comments: q.comments.find(
 								(c) => c.id === comment.id,
@@ -759,6 +732,17 @@ export default function AskAriPage() {
 		);
 	}
 
+	function handleStatusChanged(
+		questionId: string,
+		newStatus: QuestionStatus,
+	) {
+		setQuestions((prev) =>
+			prev.map((q) =>
+				q.id === questionId ? { ...q, status: newStatus } : q,
+			),
+		);
+	}
+
 	function handleNewQuestion(q: Question) {
 		setQuestions((prev) => [q, ...prev]);
 		setOpenIds((prev) => new Set([...prev, q.id]));
@@ -767,16 +751,22 @@ export default function AskAriPage() {
 	}
 
 	const filtered = questions.filter((q) => {
-		if (activeTab === 'open') return q.status !== 'answered';
-		if (activeTab === 'answered') return q.status === 'answered';
-		return true;
+		const matchesTab =
+			activeTab === 'all' ||
+			(activeTab === 'open' && q.status !== 'answered') ||
+			(activeTab === 'answered' && q.status === 'answered');
+		const matchesSearch =
+			!search ||
+			q.title.toLowerCase().includes(search.toLowerCase()) ||
+			q.message.toLowerCase().includes(search.toLowerCase()) ||
+			(q.user_email ?? '').toLowerCase().includes(search.toLowerCase());
+		return matchesTab && matchesSearch;
 	});
+
 	const answeredCount = questions.filter(
 		(q) => q.status === 'answered',
 	).length;
 	const openCount = questions.filter((q) => q.status !== 'answered').length;
-
-	// ── Guards ─────────────────────────────────────────────────────────────────
 
 	if (authLoading) {
 		return (
@@ -823,8 +813,6 @@ export default function AskAriPage() {
 		);
 	}
 
-	// ── Render ─────────────────────────────────────────────────────────────────
-
 	return (
 		<div className='min-h-screen bg-cream-50'>
 			<Navbar />
@@ -843,82 +831,70 @@ export default function AskAriPage() {
 							</div>
 							<h1 className='text-[20px] font-semibold text-gray-900'>
 								Ask Ari
+								{adminView && (
+									<span className='ml-2 text-[12px] font-medium text-choco-500 bg-choco-100 px-2 py-0.5 rounded-full align-middle'>
+										Admin
+									</span>
+								)}
 							</h1>
 						</div>
 						<p className='text-[13px] text-gray-500 pl-[42px]'>
-							Ask anything about your website scores or strategy.
-							Expert reply within 24–48 hours.
+							{adminView
+								? 'All user questions · Replying as Ari'
+								: 'Ask anything about your website scores or strategy. Expert reply within 24–48 hours.'}
 						</p>
 					</div>
 
 					<div className='flex items-center gap-2 flex-shrink-0 ml-4'>
-						{/* Admin controls — only in DOM when isAdmin is true (DB-confirmed) */}
+						{/* Admin view toggle — DB-confirmed admins only */}
 						{isAdmin && (
-							<>
-								<Link
-									href='/admin/ask-ari'
-									className='text-[11px] font-medium px-3 py-1.5 rounded-lg border border-choco-200 bg-white text-choco-700 hover:bg-choco-50 transition-colors'>
-									Admin portal →
-								</Link>
-								<button
-									onClick={() => setSupportMode((v) => !v)}
-									className={`text-[11px] font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-										supportMode
-											? 'bg-emerald-600 text-white border-emerald-600'
-											: 'bg-white text-choco-600 border-choco-200 hover:border-choco-400'
-									}`}>
-									{supportMode
-										? '★ Support mode on'
-										: 'Support mode'}
-								</button>
-							</>
+							<button
+								onClick={() => setAdminView((v) => !v)}
+								className={`text-[11px] font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+									adminView
+										? 'bg-choco-800 text-cream-50 border-choco-800'
+										: 'bg-white text-choco-700 border-choco-200 hover:bg-choco-50'
+								}`}>
+								{adminView ? '★ Admin' : 'Admin'}
+							</button>
 						)}
-						<button
-							onClick={() => {
-								setShowForm(true);
-								setActiveTab('all');
-							}}
-							className='flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors'>
-							<svg
-								className='w-3 h-3'
-								viewBox='0 0 12 12'
-								fill='none'
-								stroke='currentColor'
-								strokeWidth='2'
-								strokeLinecap='round'>
-								<path d='M6 1v10M1 6h10' />
-							</svg>
-							New question
-						</button>
+						{!adminView && (
+							<button
+								onClick={() => {
+									setShowForm(true);
+									setActiveTab('all');
+								}}
+								className='flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors'>
+								<svg
+									className='w-3 h-3'
+									viewBox='0 0 12 12'
+									fill='none'
+									stroke='currentColor'
+									strokeWidth='2'
+									strokeLinecap='round'>
+									<path d='M6 1v10M1 6h10' />
+								</svg>
+								New question
+							</button>
+						)}
 					</div>
 				</div>
 
-				{/* Support mode banner */}
-				{isAdmin && supportMode && (
-					<div className='mb-4 flex items-center justify-between text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2'>
-						<div className='flex items-center gap-2'>
-							<svg
-								className='w-3.5 h-3.5 flex-shrink-0'
-								viewBox='0 0 14 14'
-								fill='currentColor'>
-								<path d='M7 1l1.545 3.13L12 4.635l-2.5 2.437.59 3.44L7 8.885l-3.09 1.627.59-3.44L2 4.635l3.455-.505L7 1z' />
-							</svg>
-							<span>
-								Support mode — the <strong>Reply as Ari</strong>{' '}
-								button sends as expert. <strong>Send</strong>{' '}
-								posts as you.
-							</span>
-						</div>
-						<button
-							onClick={() => setSupportMode(false)}
-							className='text-emerald-600 hover:text-emerald-800 underline ml-3 flex-shrink-0'>
-							Exit
-						</button>
+				{/* Admin search */}
+				{adminView && (
+					<div className='mb-4'>
+						<input
+							type='text'
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							placeholder='Search questions or user emails…'
+							className='w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-choco-400 focus:ring-1 focus:ring-choco-400 transition-colors'
+						/>
 					</div>
 				)}
 
 				{/* New question form */}
-				{showForm && (
+				{showForm && !adminView && (
 					<NewQuestionForm
 						userId={user.id}
 						onCreated={handleNewQuestion}
@@ -985,19 +961,17 @@ export default function AskAriPage() {
 								<path d='M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' />
 							</svg>
 						</div>
-
-						{activeTab === 'all' ? (
+						{activeTab === 'all' && !adminView ? (
 							<>
 								<p className='text-[16px] font-semibold text-gray-900 mb-1'>
 									Talk to an expert — it&apos;s free
 								</p>
 								<p className='text-[13px] text-gray-500 max-w-sm mx-auto leading-relaxed mb-6'>
 									Get a real human answer on your clarity
-									score, your AI visibility, your homepage
-									copy, or anything about your website
-									strategy.
+									score, AI visibility, homepage copy, or
+									anything about your website strategy.
 								</p>
-								<div className='flex flex-col items-center gap-2 text-[12px] text-gray-400 mb-6'>
+								<div className='flex flex-col items-center gap-2 mb-6'>
 									{[
 										'Why is my AI clarity score lower than expected?',
 										"How do I improve my site's structure for AI tools?",
@@ -1006,7 +980,7 @@ export default function AskAriPage() {
 									].map((example) => (
 										<div
 											key={example}
-											className='flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 max-w-sm w-full text-left text-gray-500'>
+											className='flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 max-w-sm w-full text-left text-gray-500 text-[12px]'>
 											<span className='text-emerald-400 flex-shrink-0'>
 												→
 											</span>
@@ -1035,11 +1009,16 @@ export default function AskAriPage() {
 						) : (
 							<>
 								<p className='text-[15px] font-semibold text-gray-800 mb-1'>
-									No {activeTab} questions
+									{search
+										? 'No matching questions'
+										: activeTab === 'open'
+											? 'All caught up!'
+											: `No ${activeTab} questions`}
 								</p>
 								<p className='text-[13px] text-gray-400'>
-									Switch to the All tab to see all your
-									threads.
+									{search
+										? 'Try a different search term.'
+										: 'Switch tabs to see other questions.'}
 								</p>
 							</>
 						)}
@@ -1052,11 +1031,11 @@ export default function AskAriPage() {
 								question={q}
 								isOpen={openIds.has(q.id)}
 								isAdmin={isAdmin}
-								supportMode={supportMode}
-								userId={user.id}
+								adminView={adminView}
 								userName={user.name}
 								onToggle={() => toggleThread(q.id)}
 								onCommentAdded={handleCommentAdded}
+								onStatusChanged={handleStatusChanged}
 							/>
 						))}
 					</div>
