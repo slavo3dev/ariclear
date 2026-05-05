@@ -1,7 +1,4 @@
 // app/api/plan-request/route.ts
-//
-// Receives PreorderForm submissions and saves them to plan_requests table.
-// Uses the service role key so no auth is required from the browser.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -12,9 +9,8 @@ function getServiceClient() {
 		'',
 	);
 	const key = process.env.SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY;
-	if (!url || !key) {
+	if (!url || !key)
 		throw new Error('Missing SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY env var');
-	}
 	return createClient(url, key, {
 		auth: { autoRefreshToken: false, persistSession: false },
 	});
@@ -23,9 +19,8 @@ function getServiceClient() {
 export async function POST(req: NextRequest) {
 	try {
 		const body = await req.json();
-		const { email, plan, websites, url, sourceUrl } = body;
+		const { email, phone, plan, websites, url, notes, sourceUrl } = body;
 
-		// Basic validation
 		if (!email || !plan || !websites) {
 			return NextResponse.json(
 				{ error: 'Missing required fields: email, plan, websites' },
@@ -45,13 +40,14 @@ export async function POST(req: NextRequest) {
 		const { error } = await supabase.from('plan_requests').upsert(
 			{
 				email: email.trim().toLowerCase(),
+				phone: phone?.trim() || null,
 				plan,
 				websites: Number(websites),
 				url: url?.trim() || null,
+				notes: notes?.trim() || null,
 				source_url: sourceUrl || null,
 			},
 			{
-				// If same email+plan already exists, update the row instead of erroring
 				onConflict: 'email,plan',
 				ignoreDuplicates: false,
 			},

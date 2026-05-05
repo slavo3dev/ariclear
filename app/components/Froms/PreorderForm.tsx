@@ -31,6 +31,13 @@ const TIER_CONFIG = {
 
 type Tier = keyof typeof TIER_CONFIG;
 
+function normalizeUrl(raw: string): string {
+	const trimmed = raw.trim();
+	if (!trimmed) return '';
+	if (/^https?:\/\//i.test(trimmed)) return trimmed;
+	return `https://${trimmed}`;
+}
+
 export function PreorderForm({
 	onSuccess,
 	tier,
@@ -42,8 +49,10 @@ export function PreorderForm({
 	const resolvedTier = (tier as Tier) ?? 'pro';
 
 	const [email, setEmail] = useState('');
+	const [phone, setPhone] = useState('');
 	const [url, setUrl] = useState('');
 	const [websites, setWebsites] = useState<string>(config.websites);
+	const [notes, setNotes] = useState('');
 	const [submitted, setSubmitted] = useState(false);
 	const [loading, setLoading] = useState(false);
 
@@ -60,16 +69,17 @@ export function PreorderForm({
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					email: email.trim(),
+					phone: phone.trim() || undefined,
 					plan: resolvedTier,
 					websites: Number(websites),
-					url: url.trim() || undefined,
+					url: normalizeUrl(url) || undefined,
+					notes: notes.trim() || undefined,
 					sourceUrl: window.location.href,
 				}),
 			});
 
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
-				// Treat a duplicate as a soft success (they already requested)
 				if (res.status === 409 || data?.error?.includes('duplicate')) {
 					toast("You've already requested access 👀", { icon: 'ℹ️' });
 					onSuccess?.();
@@ -82,7 +92,9 @@ export function PreorderForm({
 				setLoading(false);
 				setSubmitted(true);
 				setEmail('');
+				setPhone('');
 				setUrl('');
+				setNotes('');
 				toast.success(
 					"Request submitted! We'll reach out within 24 hours.",
 				);
@@ -108,11 +120,9 @@ export function PreorderForm({
 					<span className='h-1.5 w-1.5 rounded-full bg-amber-400' />
 					{config.badge}
 				</p>
-
 				<h2 className='text-xl font-semibold text-cream-50 sm:text-2xl'>
 					{config.headline}
 				</h2>
-
 				<p className='text-xs leading-relaxed text-choco-200'>
 					{config.description}
 				</p>
@@ -132,6 +142,26 @@ export function PreorderForm({
 					value={email}
 					onChange={(e) => setEmail(e.target.value)}
 					placeholder='you@company.com'
+					className='w-full rounded-full border border-choco-700 bg-choco-800 px-4 py-2 text-sm text-cream-50 placeholder:text-choco-400 focus:border-choco-400 focus:outline-none focus:ring-1 focus:ring-choco-400'
+				/>
+			</div>
+
+			{/* Phone */}
+			<div className='space-y-2'>
+				<label
+					htmlFor='phone'
+					className='text-xs font-medium uppercase tracking-[0.12em] text-choco-300'>
+					Phone number{' '}
+					<span className='normal-case text-choco-500'>
+						(optional)
+					</span>
+				</label>
+				<input
+					id='phone'
+					type='tel'
+					value={phone}
+					onChange={(e) => setPhone(e.target.value)}
+					placeholder='+1 555 000 0000'
 					className='w-full rounded-full border border-choco-700 bg-choco-800 px-4 py-2 text-sm text-cream-50 placeholder:text-choco-400 focus:border-choco-400 focus:outline-none focus:ring-1 focus:ring-choco-400'
 				/>
 			</div>
@@ -159,24 +189,51 @@ export function PreorderForm({
 				</select>
 			</div>
 
-			{/* Optional URL */}
+			{/* URL */}
 			<div className='space-y-2'>
 				<label
 					htmlFor='homepage'
 					className='text-xs font-medium uppercase tracking-[0.12em] text-choco-300'>
-					Primary website URL (optional)
+					Primary website URL{' '}
+					<span className='normal-case text-choco-500'>
+						(optional)
+					</span>
 				</label>
 				<input
 					id='homepage'
-					type='url'
+					type='text'
 					value={url}
 					onChange={(e) => setUrl(e.target.value)}
-					placeholder='https://yourwebsite.com'
+					onBlur={(e) => {
+						const normalized = normalizeUrl(e.target.value);
+						if (normalized) setUrl(normalized);
+					}}
+					placeholder='yourwebsite.com'
 					className='w-full rounded-full border border-choco-700 bg-choco-800 px-4 py-2 text-xs text-cream-50 placeholder:text-choco-400 focus:border-choco-400 focus:outline-none focus:ring-1 focus:ring-choco-400'
 				/>
 				<p className='text-[11px] text-choco-300'>
 					We'll run your first scan to show you what AriClear can do.
 				</p>
+			</div>
+
+			{/* Notes */}
+			<div className='space-y-2'>
+				<label
+					htmlFor='notes'
+					className='text-xs font-medium uppercase tracking-[0.12em] text-choco-300'>
+					Anything else we should know?{' '}
+					<span className='normal-case text-choco-500'>
+						(optional)
+					</span>
+				</label>
+				<textarea
+					id='notes'
+					value={notes}
+					onChange={(e) => setNotes(e.target.value)}
+					placeholder='Tell us about your project, goals, or questions...'
+					rows={3}
+					className='w-full rounded-2xl border border-choco-700 bg-choco-800 px-4 py-3 text-xs text-cream-50 placeholder:text-choco-400 focus:border-choco-400 focus:outline-none focus:ring-1 focus:ring-choco-400 resize-none'
+				/>
 			</div>
 
 			{/* CTA */}
@@ -202,7 +259,7 @@ export function PreorderForm({
 				Book a 30-min call instead
 			</a>
 
-			{/* Submitted message */}
+			{/* Submitted */}
 			{submitted && (
 				<div className='rounded-xl bg-green-900/30 border border-green-700 px-4 py-3 text-[12px] text-cream-100'>
 					<p className='font-medium mb-1'>✅ Request submitted!</p>
@@ -214,7 +271,6 @@ export function PreorderForm({
 				</div>
 			)}
 
-			{/* Terms */}
 			<p className='text-[10px] text-choco-400 text-center'>
 				No credit card required to get started.
 			</p>
