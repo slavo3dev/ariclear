@@ -15,9 +15,9 @@ export default function HomePage() {
 
 			<main className='flex-1'>
 				<HeroSection />
+				<HomePageClient />
 				<HowItWorksSection />
 				<WhoItsForSection />
-				<HomePageClient />
 				<PricingSection />
 			</main>
 
