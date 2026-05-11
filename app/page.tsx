@@ -14,8 +14,8 @@ export default function HomePage() {
 			<Navbar />
 
 			<main className='flex-1'>
-				<HeroSection />
 				<HomePageClient />
+				<HeroSection />
 				<HowItWorksSection />
 				<WhoItsForSection />
 				<PricingSection />

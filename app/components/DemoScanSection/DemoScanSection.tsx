@@ -381,10 +381,10 @@ export function DemoScanSection({
       `}</style>
 
 			<section
-				className='relative overflow-hidden py-20'
+				className='relative overflow-hidden pb-20 pt-24'
 				style={{
 					background:
-						'linear-gradient(180deg, #fdf8f2 0%, #f5ece0 50%, #fdf8f2 100%)',
+						'linear-gradient(180deg, #fdf8f2 0%, #f0e8d8 60%, #fdf8f2 100%)',
 				}}>
 				{/* Background decoration */}
 				<div
@@ -392,13 +392,13 @@ export function DemoScanSection({
 					className='pointer-events-none absolute inset-0'
 					style={{
 						backgroundImage:
-							'radial-gradient(circle at 30% 40%, rgba(180,130,70,0.06) 0%, transparent 60%), radial-gradient(circle at 75% 70%, rgba(90,60,20,0.05) 0%, transparent 55%)',
+							'radial-gradient(circle at 20% 30%, rgba(180,130,70,0.08) 0%, transparent 55%), radial-gradient(circle at 80% 70%, rgba(90,60,20,0.06) 0%, transparent 50%)',
 					}}
 				/>
 
-				<div className='relative mx-auto max-w-xl px-4'>
-					{/* Label */}
-					<div className='mb-4 flex justify-center'>
+				<div className='relative mx-auto max-w-2xl px-6'>
+					{/* Badge */}
+					<div className='mb-6 flex justify-center'>
 						<span
 							className='rounded-full px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]'
 							style={{
@@ -406,22 +406,77 @@ export function DemoScanSection({
 								color: '#7a5030',
 								border: '1px solid #ddd0bc',
 							}}>
-							Try it now — no account needed
+							Free · no account needed
 						</span>
 					</div>
 
-					{/* Headline */}
-					<h2
-						className='mb-2 text-center text-3xl font-bold leading-tight tracking-tight'
-						style={{ color: '#1e1208' }}>
-						See how your website scores
-						<br />
-						<span style={{ color: '#8a5c30' }}>in 30 seconds</span>
-					</h2>
-					<p className='mb-8 text-center text-sm text-[#8a7060]'>
-						Drop your URL below. We&apos;ll run a real analysis —
-						instantly.
+					{/* Hero headline */}
+					<h1
+						className='mb-4 text-center font-bold leading-[1.15] tracking-tight'
+						style={{
+							color: '#1e1208',
+							fontSize: 'clamp(2.2rem, 4.5vw, 3rem)',
+						}}>
+						Can a visitor understand your website{' '}
+						<span style={{ color: '#8a5c30' }}>in 5 seconds?</span>
+					</h1>
+
+					{/* Subheadline */}
+					<p className='mb-2 text-center text-base leading-relaxed text-[#6a5040] sm:text-lg'>
+						Nielsen research shows visitors leave most web pages{' '}
+						<span className='font-semibold text-[#5a3e28]'>
+							within 10–20 seconds
+						</span>{' '}
+						— unless the value is immediately obvious. If your
+						message doesn&apos;t land instantly, they&apos;re gone
+						and you never know why.
 					</p>
+					<p className='mb-6 text-center text-[11px] text-[#a09080]'>
+						Source:{' '}
+						<a
+							href='https://www.nngroup.com/articles/how-long-do-users-stay-on-web-pages/'
+							target='_blank'
+							rel='noopener noreferrer'
+							className='underline underline-offset-2 hover:text-[#7a5c40]'>
+							Nielsen Norman Group — How Long Do Users Stay on Web
+							Pages?
+						</a>
+					</p>
+
+					{/* Stat pills */}
+					<div className='mb-8 flex flex-wrap justify-center gap-2'>
+						{[
+							{
+								stat: '10–20s',
+								label: 'before visitors leave (Nielsen)',
+							},
+							{ stat: '55%', label: 'leave in under 15s' },
+							{
+								stat: '70%+',
+								label: 'AI answers skip uncited sites',
+							},
+							{ stat: '20s', label: 'to get your score' },
+						].map(({ stat, label }) => (
+							<div
+								key={stat}
+								className='flex items-center gap-1.5 rounded-full px-3 py-1.5'
+								style={{
+									background: '#ece0d0',
+									border: '1px solid #d8ccbc',
+								}}>
+								<span
+									className='text-sm font-bold'
+									style={{ color: '#3c2a18' }}>
+									{stat}
+								</span>
+								<span
+									className='text-[11px]'
+									style={{ color: '#7a5c40' }}>
+									{label}
+								</span>
+							</div>
+						))}
+					</div>
 
 					{/* Input */}
 					<div
