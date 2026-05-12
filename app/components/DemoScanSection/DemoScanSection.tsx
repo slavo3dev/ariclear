@@ -479,48 +479,57 @@ export function DemoScanSection({
 					</div>
 
 					{/* Input */}
-					<div
-						className='rounded-2xl border border-[#ddd0bc] bg-white p-2 shadow-[0_2px_16px_rgba(90,60,20,0.08)]'
-						style={{
-							display: 'flex',
-							gap: 8,
-							alignItems: 'center',
-						}}>
-						<input
-							ref={inputRef}
-							type='url'
-							value={url}
-							onChange={(e) => {
-								setUrl(e.target.value);
-								if (state === 'error') {
-									setState('idle');
-									setErrorMsg('');
-								}
-							}}
-							onKeyDown={handleKeyDown}
-							placeholder='https://yoursite.com'
-							disabled={isLoading}
-							className='flex-1 rounded-xl border-0 bg-transparent px-4 py-2.5 text-sm text-[#2c1e10] placeholder:text-[#c0b0a0] focus:outline-none disabled:opacity-60'
-						/>
-						<button
-							onClick={handleScan}
-							disabled={isLoading || !url.trim()}
-							className='shrink-0 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all duration-150 disabled:opacity-50 active:scale-95'
+					<div className='mb-3'>
+						<p className='mb-2 text-center text-xs font-semibold uppercase tracking-[0.14em] text-[#8a6040]'>
+							Drop your homepage URL and get your free score
+						</p>
+						<div
+							className='rounded-2xl border-2 border-[#c8b89a] bg-white p-2 shadow-[0_4px_24px_rgba(90,60,20,0.12)] transition-shadow focus-within:border-[#8a5c30] focus-within:shadow-[0_4px_32px_rgba(90,60,20,0.18)]'
 							style={{
-								background: isLoading
-									? '#8a6040'
-									: 'linear-gradient(135deg, #3c2a18 0%, #6b4226 100%)',
-								boxShadow: '0 2px 8px rgba(60,42,24,0.2)',
+								display: 'flex',
+								gap: 8,
+								alignItems: 'center',
 							}}>
-							{isLoading ? (
-								<span className='flex items-center gap-2'>
-									<span className='demo-scan-spinner' />
-									Scanning…
-								</span>
-							) : (
-								'Scan Site →'
-							)}
-						</button>
+							<input
+								ref={inputRef}
+								type='url'
+								value={url}
+								onChange={(e) => {
+									setUrl(e.target.value);
+									if (state === 'error') {
+										setState('idle');
+										setErrorMsg('');
+									}
+								}}
+								onKeyDown={handleKeyDown}
+								placeholder='https://yoursite.com'
+								disabled={isLoading}
+								className='flex-1 rounded-xl border-0 bg-transparent px-4 py-3 text-sm text-[#2c1e10] placeholder:text-[#c0b0a0] focus:outline-none disabled:opacity-60'
+							/>
+							<button
+								onClick={handleScan}
+								disabled={isLoading || !url.trim()}
+								className='shrink-0 rounded-xl px-6 py-3 text-sm font-bold text-white transition-all duration-150 active:scale-95'
+								style={{
+									background:
+										isLoading || !url.trim()
+											? '#b8a898'
+											: 'linear-gradient(135deg, #5c3518 0%, #8a4e28 100%)',
+									boxShadow:
+										url.trim() && !isLoading
+											? '0 4px 14px rgba(90,50,20,0.35)'
+											: 'none',
+								}}>
+								{isLoading ? (
+									<span className='flex items-center gap-2'>
+										<span className='demo-scan-spinner' />
+										Scanning…
+									</span>
+								) : (
+									'Get my score →'
+								)}
+							</button>
+						</div>
 					</div>
 
 					{/* Inline error */}
@@ -538,7 +547,7 @@ export function DemoScanSection({
 							className='mt-3 text-center text-[11px] text-[#a09080]'
 							style={{ animation: 'fadeSlideUp 0.3s ease both' }}>
 							Fetching your page and running analysis — usually
-							under 15s
+							under 20s
 						</p>
 					)}
 
@@ -549,10 +558,19 @@ export function DemoScanSection({
 
 					{/* Trust line */}
 					{state === 'idle' && (
-						<p className='mt-5 text-center text-[11px] text-[#b0a090]'>
-							Works on any public website · No login required to
-							preview
-						</p>
+						<div className='mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1'>
+							{[
+								'✓ Free, no credit card',
+								'✓ Works on any public site',
+								'✓ Results in ~20 seconds',
+							].map((item) => (
+								<span
+									key={item}
+									className='text-[11px] text-[#a09080]'>
+									{item}
+								</span>
+							))}
+						</div>
 					)}
 				</div>
 			</section>
