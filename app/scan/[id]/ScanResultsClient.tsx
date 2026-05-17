@@ -5,6 +5,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan, ActionStep } from './page';
+import { ScanRecapVideo } from './ScanRecapVideo';
 import { VideoCreatorPanel } from './VideoCreatorPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -151,6 +152,9 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 				className='flex items-center gap-1.5 text-xs font-medium text-choco-500 transition hover:text-choco-900'>
 				← New scan
 			</button>
+
+			{/* ── SCAN RECAP VIDEO — auto-plays, shows how AriClear sees the site ── */}
+			<ScanRecapVideo scan={scan} />
 
 			{/* Header */}
 			<div className='rounded-3xl border border-choco-100 bg-white p-5 shadow-sm'>
@@ -338,7 +342,7 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 				</Section>
 			)}
 
-			{/* Video creator */}
+			{/* ── VIDEO CREATOR — custom social video with prompt + style + format ── */}
 			<VideoCreatorPanel scan={scan} />
 		</div>
 	);
