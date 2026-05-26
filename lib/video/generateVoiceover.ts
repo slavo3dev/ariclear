@@ -5,6 +5,7 @@
 // Returns a Buffer ready to upload to Cloudinary.
 
 import textToSpeech from '@google-cloud/text-to-speech';
+import path from 'path';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,25 +23,20 @@ const VOICE_MAP: Record<
 	VoiceoverInput['style'],
 	{ name: string; pitch: number; speakingRate: number }
 > = {
-	bold: { name: 'en-US-Neural2-D', pitch: -2, speakingRate: 1.1 }, // deep male, fast
-	clean: { name: 'en-US-Neural2-F', pitch: 0, speakingRate: 0.95 }, // clear female, calm
-	warm: { name: 'en-US-Neural2-A', pitch: 1, speakingRate: 0.9 }, // warm male, relaxed
-	urgent: { name: 'en-US-Neural2-D', pitch: -4, speakingRate: 1.15 }, // deep male, urgent
+	bold: { name: 'en-US-Neural2-D', pitch: -2, speakingRate: 1.1 },
+	clean: { name: 'en-US-Neural2-F', pitch: 0, speakingRate: 0.95 },
+	warm: { name: 'en-US-Neural2-A', pitch: 1, speakingRate: 0.9 },
+	urgent: { name: 'en-US-Neural2-D', pitch: -4, speakingRate: 1.15 },
 };
 
 // ─── SSML builder ─────────────────────────────────────────────────────────────
-// Each scene is 3s. We add a pause between scenes so narration
-// lands at the right time relative to the visual.
 
 function buildSSML(scenes: VoiceoverInput['scenes']): string {
 	const parts = scenes.map((scene, i) => {
-		// First scene starts immediately, others get a short lead-in pause
 		const leadIn = i === 0 ? '' : '<break time="200ms"/>';
-		// Pause after each narration to fill the remaining scene time
 		const trailOut = i < scenes.length - 1 ? '<break time="1s"/>' : '';
 		return `${leadIn}${scene.narration}${trailOut}`;
 	});
-
 	return `<speak>${parts.join('')}</speak>`;
 }
 
@@ -49,13 +45,14 @@ function buildSSML(scenes: VoiceoverInput['scenes']): string {
 export async function generateVoiceover(
 	input: VoiceoverInput,
 ): Promise<Buffer> {
-	const credentialsEnv = process.env.GOOGLE_TTS_CREDENTIALS;
-	if (!credentialsEnv) throw new Error('GOOGLE_TTS_CREDENTIALS is not set');
+	const credentialsPath = process.env.GOOGLE_TTS_CREDENTIALS_PATH;
+	if (!credentialsPath) {
+		throw new Error('GOOGLE_TTS_CREDENTIALS_PATH is not set');
+	}
 
-	// Parse the JSON credentials stored as a string in env
-	const credentials = JSON.parse(credentialsEnv);
-
-	const client = new textToSpeech.TextToSpeechClient({ credentials });
+	const client = new textToSpeech.TextToSpeechClient({
+		keyFilename: path.resolve(process.cwd(), credentialsPath),
+	});
 
 	const voice = VOICE_MAP[input.style];
 	const ssml = buildSSML(input.scenes);
