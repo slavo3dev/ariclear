@@ -24,6 +24,7 @@
 			"@ariclear/lib/*": ["./lib/*"],
 			"@/app/*": ["./app/*"],
 			"@/lib/*": ["./lib/*"],
+			"@/lib": ["./lib"],
 			"@/helpers/*": ["./helpers/*"],
 			"@/helpers": ["./helpers"],
 			"@/components/*": ["./app/components/*"],

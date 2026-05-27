@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth, Navbar, SiteFooter } from '@ariclear/components';
-import { supabaseAriClear } from '@/lib';
+import { supabaseAriClear } from '@/lib/video';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

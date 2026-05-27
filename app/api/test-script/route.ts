@@ -1,10 +1,11 @@
 // app/api/test-script/route.ts
-// DELETE THIS FILE after testing Steps 4b, 4c, 4d
+// DELETE THIS FILE after testing Steps 4b, 4c, 4d, 4e
 
 import { NextResponse } from 'next/server';
 import { generateVideoScript } from '@/lib/video/generateScript';
 import { generateVoiceover } from '@/lib/video/generateVoiceover';
 import { generateSceneImages } from '@/lib/video/generateImages';
+import { uploadToCloudinary } from '@/lib/video/uploadToCloudinary';
 
 export async function GET() {
 	// Step 4b — Gemini script
@@ -31,16 +32,23 @@ export async function GET() {
 		style: 'bold',
 	});
 
-	// Step 4d — Replicate images (runs in parallel)
-	const imageUrls = await generateSceneImages({
+	// Step 4d — Replicate images
+	const replicateUrls = await generateSceneImages({
 		imagePrompts: script.scenes.map((s) => s.imagePrompt),
 		style: 'bold',
 		format: 'reels',
 	});
 
+	// Step 4e — Upload everything to Cloudinary
+	const { voiceoverUrl, sceneImageUrls } = await uploadToCloudinary(
+		audio,
+		replicateUrls,
+		'test-scan-001',
+	);
+
 	return NextResponse.json({
 		script,
-		audioSize: `${Math.round(audio.length / 1024)}kb`,
-		imageUrls,
+		voiceoverUrl,
+		sceneImageUrls,
 	});
 }
