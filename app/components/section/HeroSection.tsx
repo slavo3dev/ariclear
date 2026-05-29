@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { Button, HeroPreviewCard } from '@ariclear/components';
-import { preorderRequest } from '@ariclear/helpers';
+import { preorderRequest } from '@/helpers';
 import { toast } from 'react-hot-toast';
 
 export function HeroSection() {

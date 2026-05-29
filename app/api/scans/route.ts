@@ -1,338 +1,363 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabaseAriClearServer } from "@ariclear/lib/supabase/auth/server";
+import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET /api/scans - Get all scans for the authenticated user
 export async function GET(request: NextRequest) {
-  try {
-    const supabase = await supabaseAriClearServer();
-    
-    console.log('GET /api/scans - Starting...');
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    console.log('User ID:', user?.id);
-    console.log('Auth error:', authError);
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+	try {
+		const supabase = await supabaseAriClearServer();
 
-    // Get query parameters for filtering and sorting
-    const { searchParams } = new URL(request.url);
-    const filter = searchParams.get('filter');
-    const sortBy = searchParams.get('sortBy') || 'date';
+		console.log('GET /api/scans - Starting...');
 
-    let query = supabase
-      .from('scans')
-      .select('*')
-      .eq('user_id', user.id);
+		// Check authentication
+		const {
+			data: { user },
+			error: authError,
+		} = await supabase.auth.getUser();
 
-    // Apply filters
-    if (filter === 'recent') {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      query = query.gte('created_at', weekAgo.toISOString());
-    } else if (filter === 'low-score') {
-      query = query.lt('overall_score', 70);
-    }
+		console.log('User ID:', user?.id);
+		console.log('Auth error:', authError);
 
-    // Apply sorting
-    if (sortBy === 'score') {
-      query = query.order('overall_score', { ascending: false });
-    } else {
-      query = query.order('created_at', { ascending: false });
-    }
+		if (authError || !user) {
+			return NextResponse.json(
+				{ error: 'Unauthorized' },
+				{ status: 401 },
+			);
+		}
 
-    const { data, error } = await query;
+		// Get query parameters for filtering and sorting
+		const { searchParams } = new URL(request.url);
+		const filter = searchParams.get('filter');
+		const sortBy = searchParams.get('sortBy') || 'date';
 
-    console.log('Scans found:', data?.length);
-    console.log('Query error:', error);
+		let query = supabase.from('scans').select('*').eq('user_id', user.id);
 
-    if (error) {
-      console.error('Error fetching scans:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch scans', details: error.message },
-        { status: 500 }
-      );
-    }
+		// Apply filters
+		if (filter === 'recent') {
+			const weekAgo = new Date();
+			weekAgo.setDate(weekAgo.getDate() - 7);
+			query = query.gte('created_at', weekAgo.toISOString());
+		} else if (filter === 'low-score') {
+			query = query.lt('overall_score', 70);
+		}
 
-    return NextResponse.json({ scans: data || [] });
-  } catch (error) {
-    console.error('Server error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+		// Apply sorting
+		if (sortBy === 'score') {
+			query = query.order('overall_score', { ascending: false });
+		} else {
+			query = query.order('created_at', { ascending: false });
+		}
+
+		const { data, error } = await query;
+
+		console.log('Scans found:', data?.length);
+		console.log('Query error:', error);
+
+		if (error) {
+			console.error('Error fetching scans:', error);
+			return NextResponse.json(
+				{ error: 'Failed to fetch scans', details: error.message },
+				{ status: 500 },
+			);
+		}
+
+		return NextResponse.json({ scans: data || [] });
+	} catch (error) {
+		console.error('Server error:', error);
+		return NextResponse.json(
+			{ error: 'Internal server error' },
+			{ status: 500 },
+		);
+	}
 }
 
 // POST /api/scans - Create a new scan WITH WEBSITE LIMIT CHECK
 export async function POST(request: NextRequest) {
-  try {
-    const supabase = await supabaseAriClearServer();
-    
-    console.log('POST /api/scans - Starting...');
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    console.log('User ID:', user?.id);
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+	try {
+		const supabase = await supabaseAriClearServer();
 
-    const body = await request.json();
-    const { analyzeResult, url } = body;
+		console.log('POST /api/scans - Starting...');
 
-    console.log('Request URL:', url);
+		// Check authentication
+		const {
+			data: { user },
+			error: authError,
+		} = await supabase.auth.getUser();
 
-    if (!analyzeResult || !url) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
+		console.log('User ID:', user?.id);
 
-    // Calculate scores
-    const humanScore = analyzeResult.human?.clarityScore ?? 0;
-    const aiScore = analyzeResult.ai?.aiSeoScore ?? 0;
-    const combinedScore = Math.round((humanScore + aiScore) / 2);
+		if (authError || !user) {
+			return NextResponse.json(
+				{ error: 'Unauthorized' },
+				{ status: 401 },
+			);
+		}
 
-    console.log('Scores - Human:', humanScore, 'AI:', aiScore, 'Combined:', combinedScore);
+		const body = await request.json();
+		const { analyzeResult, url } = body;
 
-    // Parse domain from URL
-    let domain;
-    try {
-      domain = new URL(url).hostname;
-      console.log('Parsed domain:', domain);
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid URL' },
-        { status: 400 }
-      );
-    }
+		console.log('Request URL:', url);
 
-    // ========================================
-    // CHECK WEBSITE LIMIT
-    // ========================================
-    
-    console.log('Checking if website exists...');
-    
-    // Check if this domain already exists for user
-    const { data: existingWebsite, error: websiteCheckError } = await supabase
-      .from('user_websites')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('domain', domain)
-      .single();
+		if (!analyzeResult || !url) {
+			return NextResponse.json(
+				{ error: 'Missing required fields' },
+				{ status: 400 },
+			);
+		}
 
-    console.log('Existing website:', existingWebsite);
-    console.log('Website check error:', websiteCheckError);
+		// Calculate scores
+		const humanScore = analyzeResult.human?.clarityScore ?? 0;
+		const aiScore = analyzeResult.ai?.aiSeoScore ?? 0;
+		const combinedScore = Math.round((humanScore + aiScore) / 2);
 
-    // If new website, check if user has reached their limit
-    if (!existingWebsite) {
-      console.log('New website - checking subscription limits...');
-      
-      // Get user's subscription info
-      const { data: subscription, error: subError } = await supabase
-        .from('user_subscriptions')
-        .select('tier, websites_limit, trial_expires_at')
-        .eq('user_id', user.id)
-        .single();
+		console.log(
+			'Scores - Human:',
+			humanScore,
+			'AI:',
+			aiScore,
+			'Combined:',
+			combinedScore,
+		);
 
-      console.log('Subscription:', subscription);
-      console.log('Subscription error:', subError);
+		// Parse domain from URL
+		let domain;
+		try {
+			domain = new URL(url).hostname;
+			console.log('Parsed domain:', domain);
+		} catch {
+			return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
+		}
 
-      if (!subscription) {
-        console.log('No subscription found - creating default...');
-        
-        // Create default subscription
-        await supabase
-          .from('user_subscriptions')
-          .insert({
-            user_id: user.id,
-            tier: 'free',
-            websites_limit: 1
-          });
+		// ========================================
+		// CHECK WEBSITE LIMIT
+		// ========================================
 
-        // Count current websites against free limit
-        const { count } = await supabase
-          .from('user_websites')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+		console.log('Checking if website exists...');
 
-        const currentCount = count || 0;
-        console.log('Current website count:', currentCount);
+		// Check if this domain already exists for user
+		const { data: existingWebsite, error: websiteCheckError } =
+			await supabase
+				.from('user_websites')
+				.select('id')
+				.eq('user_id', user.id)
+				.eq('domain', domain)
+				.single();
 
-        if (currentCount >= 1) {
-          return NextResponse.json(
-            { 
-              error: 'Website limit reached',
-              errorCode: 'SCAN_LIMIT_REACHED',
-              message: `You've reached your limit of 1 free website. Upgrade to Pro to track more sites.`,
-              limit: 1,
-              current: currentCount,
-              tier: 'free',
-              requiresUpgrade: true
-            },
-            { status: 403 }
-          );
-        }
-      } else {
-        // Check if trial has expired
-        if (subscription.tier === 'trial' && subscription.trial_expires_at) {
-          const now = new Date();
-          const expiresAt = new Date(subscription.trial_expires_at);
-          
-          if (now > expiresAt) {
-            return NextResponse.json(
-              { 
-                error: 'Trial expired',
-                errorCode: 'TRIAL_EXPIRED',
-                message: 'Your 60-day trial has expired. Upgrade to Pro to continue tracking websites.',
-                limit: subscription.websites_limit,
-                tier: 'trial_expired',
-                requiresUpgrade: true
-              },
-              { status: 403 }
-            );
-          }
-        }
+		console.log('Existing website:', existingWebsite);
+		console.log('Website check error:', websiteCheckError);
 
-        // Count current websites
-        const { count } = await supabase
-          .from('user_websites')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+		// If new website, check if user has reached their limit
+		if (!existingWebsite) {
+			console.log('New website - checking subscription limits...');
 
-        const currentCount = count || 0;
-        console.log('Current website count:', currentCount, 'Limit:', subscription.websites_limit);
+			// Get user's subscription info
+			const { data: subscription, error: subError } = await supabase
+				.from('user_subscriptions')
+				.select('tier, websites_limit, trial_expires_at')
+				.eq('user_id', user.id)
+				.single();
 
-        // Check limit
-        if (currentCount >= subscription.websites_limit) {
-          return NextResponse.json(
-            { 
-              error: 'Website limit reached',
-              errorCode: 'SCAN_LIMIT_REACHED',
-              message: `You've reached your limit of ${subscription.websites_limit} website${subscription.websites_limit > 1 ? 's' : ''}. ${
-                subscription.tier === 'free' 
-                  ? 'Upgrade to Pro to track more sites.' 
-                  : 'Contact us to expand your plan.'
-              }`,
-              limit: subscription.websites_limit,
-              current: currentCount,
-              tier: subscription.tier,
-              requiresUpgrade: true
-            },
-            { status: 403 }
-          );
-        }
-      }
+			console.log('Subscription:', subscription);
+			console.log('Subscription error:', subError);
 
-      // Add new website to tracking
-      console.log('Adding new website to tracking...');
-      
-      const { error: websiteError } = await supabase
-        .from('user_websites')
-        .insert({
-          user_id: user.id,
-          domain,
-          url,
-          last_scanned_at: new Date().toISOString()
-        });
+			if (!subscription) {
+				console.log('No subscription found - creating default...');
 
-      console.log('Website insert error:', websiteError);
+				// Create default subscription
+				await supabase.from('user_subscriptions').insert({
+					user_id: user.id,
+					tier: 'free',
+					websites_limit: 1,
+				});
 
-      if (websiteError) {
-        console.error('Error adding website:', websiteError);
-        // Continue anyway - don't block the scan
-      }
-    } else {
-      console.log('Existing website - updating last scanned time...');
-      
-      // Update last scanned time for existing website
-      await supabase
-        .from('user_websites')
-        .update({ last_scanned_at: new Date().toISOString() })
-        .eq('id', existingWebsite.id);
-    }
+				// Count current websites against free limit
+				const { count } = await supabase
+					.from('user_websites')
+					.select('*', { count: 'exact', head: true })
+					.eq('user_id', user.id);
 
-    // ========================================
-    // SAVE SCAN DATA
-    // ========================================
-    
-    console.log('Preparing scan data...');
-    
-    const scanData = {
-      user_id: user.id,
-      domain,
-      url,
-      overall_score: combinedScore,
-      human_score: humanScore,
-      ai_score: aiScore,
-      human_clarity_description: analyzeResult.human?.whatItSeemsLike || null,
-      human_value_prop: analyzeResult.human?.oneSentenceValueProp || null,
-      human_audience: analyzeResult.human?.bestGuessAudience || null,
-      human_confusions: analyzeResult.human?.confusions || [],
-      ai_comprehension: analyzeResult.ai?.aiSummary || null,
-      ai_indexer_read: analyzeResult.ai?.indexerRead || null,
-      ai_missing_keywords: analyzeResult.ai?.missingKeywords || [],
-      suggested_headline: analyzeResult.copy?.suggestedHeadline || null,
-      suggested_subheadline: analyzeResult.copy?.suggestedSubheadline || null,
-      suggested_cta: analyzeResult.copy?.suggestedCTA || null,
-      action_plan: analyzeResult.plan?.nextSteps || [],
-      ai_prompt: analyzeResult.prompts?.aiSeoPrompt || null,
-      issues: (analyzeResult.human?.topIssues ?? []).map((issue: any, idx: number) => ({
-        id: `issue-${idx}`,
-        issue: issue.issue,
-        whyItHurts: issue.whyItHurts,
-        fix: issue.fix,
-      })),
-      checklist: (analyzeResult.human?.topIssues ?? []).map((issue: any, idx: number) => ({
-        id: `issue-${idx}`,
-        label: issue.issue,
-        checked: false,
-      })),
-      suggestions: analyzeResult.ai?.structuredDataSuggestions || [],
-    };
+				const currentCount = count || 0;
+				console.log('Current website count:', currentCount);
 
-    console.log('Inserting scan into database...');
+				if (currentCount >= 1) {
+					return NextResponse.json(
+						{
+							error: 'Website limit reached',
+							errorCode: 'SCAN_LIMIT_REACHED',
+							message: `You've reached your limit of 1 free website. Upgrade to Pro to track more sites.`,
+							limit: 1,
+							current: currentCount,
+							tier: 'free',
+							requiresUpgrade: true,
+						},
+						{ status: 403 },
+					);
+				}
+			} else {
+				// Check if trial has expired
+				if (
+					subscription.tier === 'trial' &&
+					subscription.trial_expires_at
+				) {
+					const now = new Date();
+					const expiresAt = new Date(subscription.trial_expires_at);
 
-    // Insert into database
-    const { data, error } = await supabase
-      .from('scans')
-      .insert(scanData)
-      .select()
-      .single();
+					if (now > expiresAt) {
+						return NextResponse.json(
+							{
+								error: 'Trial expired',
+								errorCode: 'TRIAL_EXPIRED',
+								message:
+									'Your 60-day trial has expired. Upgrade to Pro to continue tracking websites.',
+								limit: subscription.websites_limit,
+								tier: 'trial_expired',
+								requiresUpgrade: true,
+							},
+							{ status: 403 },
+						);
+					}
+				}
 
-    console.log('Scan inserted:', !!data);
-    console.log('Insert error:', error);
+				// Count current websites
+				const { count } = await supabase
+					.from('user_websites')
+					.select('*', { count: 'exact', head: true })
+					.eq('user_id', user.id);
 
-    if (error) {
-      console.error('Error saving scan:', error);
-      return NextResponse.json(
-        { error: 'Failed to save scan', details: error.message },
-        { status: 500 }
-      );
-    }
+				const currentCount = count || 0;
+				console.log(
+					'Current website count:',
+					currentCount,
+					'Limit:',
+					subscription.websites_limit,
+				);
 
-    console.log('Scan saved successfully with ID:', data.id);
+				// Check limit
+				if (currentCount >= subscription.websites_limit) {
+					return NextResponse.json(
+						{
+							error: 'Website limit reached',
+							errorCode: 'SCAN_LIMIT_REACHED',
+							message: `You've reached your limit of ${subscription.websites_limit} website${subscription.websites_limit > 1 ? 's' : ''}. ${
+								subscription.tier === 'free'
+									? 'Upgrade to Pro to track more sites.'
+									: 'Contact us to expand your plan.'
+							}`,
+							limit: subscription.websites_limit,
+							current: currentCount,
+							tier: subscription.tier,
+							requiresUpgrade: true,
+						},
+						{ status: 403 },
+					);
+				}
+			}
 
-    return NextResponse.json({ scan: data }, { status: 201 });
-  } catch (error) {
-    console.error('Server error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
+			// Add new website to tracking
+			console.log('Adding new website to tracking...');
+
+			const { error: websiteError } = await supabase
+				.from('user_websites')
+				.insert({
+					user_id: user.id,
+					domain,
+					url,
+					last_scanned_at: new Date().toISOString(),
+				});
+
+			console.log('Website insert error:', websiteError);
+
+			if (websiteError) {
+				console.error('Error adding website:', websiteError);
+				// Continue anyway - don't block the scan
+			}
+		} else {
+			console.log('Existing website - updating last scanned time...');
+
+			// Update last scanned time for existing website
+			await supabase
+				.from('user_websites')
+				.update({ last_scanned_at: new Date().toISOString() })
+				.eq('id', existingWebsite.id);
+		}
+
+		// ========================================
+		// SAVE SCAN DATA
+		// ========================================
+
+		console.log('Preparing scan data...');
+
+		const scanData = {
+			user_id: user.id,
+			domain,
+			url,
+			overall_score: combinedScore,
+			human_score: humanScore,
+			ai_score: aiScore,
+			human_clarity_description:
+				analyzeResult.human?.whatItSeemsLike || null,
+			human_value_prop: analyzeResult.human?.oneSentenceValueProp || null,
+			human_audience: analyzeResult.human?.bestGuessAudience || null,
+			human_confusions: analyzeResult.human?.confusions || [],
+			ai_comprehension: analyzeResult.ai?.aiSummary || null,
+			ai_indexer_read: analyzeResult.ai?.indexerRead || null,
+			ai_missing_keywords: analyzeResult.ai?.missingKeywords || [],
+			suggested_headline: analyzeResult.copy?.suggestedHeadline || null,
+			suggested_subheadline:
+				analyzeResult.copy?.suggestedSubheadline || null,
+			suggested_cta: analyzeResult.copy?.suggestedCTA || null,
+			action_plan: analyzeResult.plan?.nextSteps || [],
+			ai_prompt: analyzeResult.prompts?.aiSeoPrompt || null,
+			issues: (analyzeResult.human?.topIssues ?? []).map(
+				(issue: any, idx: number) => ({
+					id: `issue-${idx}`,
+					issue: issue.issue,
+					whyItHurts: issue.whyItHurts,
+					fix: issue.fix,
+				}),
+			),
+			checklist: (analyzeResult.human?.topIssues ?? []).map(
+				(issue: any, idx: number) => ({
+					id: `issue-${idx}`,
+					label: issue.issue,
+					checked: false,
+				}),
+			),
+			suggestions: analyzeResult.ai?.structuredDataSuggestions || [],
+		};
+
+		console.log('Inserting scan into database...');
+
+		// Insert into database
+		const { data, error } = await supabase
+			.from('scans')
+			.insert(scanData)
+			.select()
+			.single();
+
+		console.log('Scan inserted:', !!data);
+		console.log('Insert error:', error);
+
+		if (error) {
+			console.error('Error saving scan:', error);
+			return NextResponse.json(
+				{ error: 'Failed to save scan', details: error.message },
+				{ status: 500 },
+			);
+		}
+
+		console.log('Scan saved successfully with ID:', data.id);
+
+		return NextResponse.json({ scan: data }, { status: 201 });
+	} catch (error) {
+		console.error('Server error:', error);
+		return NextResponse.json(
+			{
+				error: 'Internal server error',
+				details:
+					error instanceof Error ? error.message : 'Unknown error',
+			},
+			{ status: 500 },
+		);
+	}
 }

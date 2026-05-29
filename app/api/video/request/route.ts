@@ -3,7 +3,7 @@
 // Status starts as "pending" — Step 6 will pick it up for actual rendering.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAriClearServer } from '@ariclear/lib/supabase/auth/server';
+import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 
 export async function POST(request: NextRequest) {
 	try {

@@ -1,4 +1,4 @@
-import { supabaseAriClearServer } from '@ariclear/lib/supabase/auth/server';
+import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET /api/scans/[id] - Get a single scan
