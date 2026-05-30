@@ -1,12 +1,13 @@
 // app/scan/[id]/page.tsx
-// Server component — fetches scan on the server, no useEffect needed.
-// Only the interactive parts (copy button, video panel) are client components.
+// Server component — fetches scan + latest video job on the server.
+// Passes both to ScanResultsClient as props.
 
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Navbar, SiteFooter } from '@ariclear/components';
 import { ScanResultsClient } from './ScanResultsClient';
+import type { VideoJobStatus } from './VideoPlayer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,18 +40,15 @@ export type Scan = {
 	created_at: string;
 };
 
-// ─── Server-side Supabase ─────────────────────────────────────────────────────
+// ─── Supabase server client ───────────────────────────────────────────────────
 
 async function getSupabase() {
 	const cookieStore = await cookies();
-	const url = process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!;
-	const key = process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_ANON_KEY!;
-
-	return createServerClient(url, key, {
-		cookies: {
-			get: (name) => cookieStore.get(name)?.value,
-		},
-	});
+	return createServerClient(
+		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!,
+		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_ANON_KEY!,
+		{ cookies: { get: (name) => cookieStore.get(name)?.value } },
+	);
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -63,24 +61,20 @@ export default async function ScanResultPage({
 	const { id } = await params;
 	const supabase = await getSupabase();
 
-	// Check auth server-side — redirect if not logged in
 	const {
 		data: { user },
 	} = await supabase.auth.getUser();
+	if (!user) redirect('/');
 
-	if (!user) {
-		redirect('/');
-	}
-
-	// Fetch scan server-side — no API round-trip needed
-	const { data: scan, error } = await supabase
+	// Fetch scan
+	const { data: scan, error: scanError } = await supabase
 		.from('scans')
 		.select('*')
 		.eq('id', id)
 		.eq('user_id', user.id)
 		.single();
 
-	if (error || !scan) {
+	if (scanError || !scan) {
 		return (
 			<div className='flex min-h-screen flex-col bg-cream-50'>
 				<Navbar />
@@ -94,11 +88,24 @@ export default async function ScanResultPage({
 		);
 	}
 
+	// Fetch latest video job for this scan
+	const { data: videoJob } = await supabase
+		.from('video_jobs')
+		.select('id, status, cloudinary_url, error_message')
+		.eq('scan_id', id)
+		.eq('user_id', user.id)
+		.order('created_at', { ascending: false })
+		.limit(1)
+		.maybeSingle();
+
 	return (
 		<div className='flex min-h-screen flex-col bg-cream-50'>
 			<Navbar />
 			<main className='mx-auto w-full max-w-2xl flex-1 px-4 py-10'>
-				<ScanResultsClient scan={scan as Scan} />
+				<ScanResultsClient
+					scan={scan as Scan}
+					videoJob={(videoJob as VideoJobStatus) ?? null}
+				/>
 			</main>
 			<SiteFooter />
 		</div>

@@ -5,7 +5,8 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan, ActionStep } from './page';
-import { ScanRecapVideo } from './ScanRecapVideo';
+import type { VideoJobStatus } from './VideoPlayer';
+import { VideoPlayer } from './VideoPlayer';
 import { VideoCreatorPanel } from './VideoCreatorPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -131,9 +132,15 @@ function Tag({ children }: { children: React.ReactNode }) {
 	);
 }
 
-// ─── Main client component ────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
-export function ScanResultsClient({ scan }: { scan: Scan }) {
+export function ScanResultsClient({
+	scan,
+	videoJob,
+}: {
+	scan: Scan;
+	videoJob: VideoJobStatus | null;
+}) {
 	const router = useRouter();
 	const [promptCopied, setPromptCopied] = useState(false);
 
@@ -153,8 +160,8 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 				← New scan
 			</button>
 
-			{/* ── SCAN RECAP VIDEO — auto-plays, shows how AriClear sees the site ── */}
-			<ScanRecapVideo scan={scan} />
+			{/* ── VIDEO PLAYER — shows real MP4 or loading state ── */}
+			<VideoPlayer initialJob={videoJob} scanId={scan.id} />
 
 			{/* Header */}
 			<div className='rounded-3xl border border-choco-100 bg-white p-5 shadow-sm'>
@@ -342,7 +349,7 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 				</Section>
 			)}
 
-			{/* ── VIDEO CREATOR — custom social video with prompt + style + format ── */}
+			{/* Video creator — custom social video */}
 			<VideoCreatorPanel scan={scan} />
 		</div>
 	);

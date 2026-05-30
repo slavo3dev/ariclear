@@ -231,7 +231,7 @@ function AriAnalyzingOverlay({ url }: { url: string }) {
 }
 
 // ─────────────────────────────────────────────
-// Limit banner — shown BEFORE analyzing
+// Limit banner
 // ─────────────────────────────────────────────
 
 function ScanLimitBanner({
@@ -242,23 +242,18 @@ function ScanLimitBanner({
 	onUpgrade: () => void;
 }) {
 	const { tier, limit, trialExpired } = limitStatus;
-
 	const title = trialExpired
 		? 'Your trial has expired'
 		: 'Website limit reached';
-
 	const body = trialExpired
 		? 'Your 60-day trial has ended. Upgrade to Pro to continue scanning and tracking your websites.'
 		: tier === 'free'
 			? `You've used your ${limit} free website slot${limit !== 1 ? 's' : ''}. Request a 60-day trial or upgrade to Pro to scan more sites.`
 			: `You've reached your plan limit of ${limit} website${limit !== 1 ? 's' : ''}. Contact us to expand your plan.`;
-
 	const upgradeLabel = tier === 'free' ? 'Upgrade to Pro' : 'Upgrade plan';
-
 	const mailSubject = trialExpired
 		? 'Renew my trial / upgrade'
 		: 'More website scans — upgrade request';
-
 	const mailBody = `Hi, I've reached my scan limit (tier: ${tier}, limit: ${limit}). I'd like to upgrade or get more scans.`;
 
 	return (
@@ -270,7 +265,6 @@ function ScanLimitBanner({
 						{title}
 					</p>
 					<p className='mt-1 text-sm text-choco-700'>{body}</p>
-
 					<div className='mt-4 flex flex-col gap-2 sm:flex-row'>
 						<Button
 							type='button'
@@ -284,7 +278,6 @@ function ScanLimitBanner({
 							Contact us
 						</a>
 					</div>
-
 					{tier === 'free' && !trialExpired && (
 						<p className='mt-3 text-[11px] text-choco-500'>
 							Free plan includes 1 website. Pro plan unlocks
@@ -298,7 +291,7 @@ function ScanLimitBanner({
 }
 
 // ─────────────────────────────────────────────
-// Post-analyze error banners
+// Error banners
 // ─────────────────────────────────────────────
 
 function RateLimitBanner() {
@@ -337,6 +330,35 @@ function GenericErrorBanner({ message }: { message: string }) {
 }
 
 // ─────────────────────────────────────────────
+// Auto-trigger video render (fire and forget)
+// ─────────────────────────────────────────────
+
+function triggerVideoRender(scanId: string, url: string) {
+	fetch('/api/video/request', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			scan_id: scanId,
+			url,
+			style: 'bold',
+			format: 'reels',
+			script: [],
+		}),
+	})
+		.then((r) => r.json())
+		.then((jobData) => {
+			const jobId = jobData?.job?.id;
+			if (!jobId) return;
+			fetch('/api/video/render', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ job_id: jobId }),
+			}).catch(() => {});
+		})
+		.catch(() => {});
+}
+
+// ─────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────
 
@@ -349,8 +371,6 @@ export default function ScanPage() {
 	const [targetUrl, setTargetUrl] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [result, setResult] = useState<AnalyzeResponse | null>(null);
-
-	// Limit state — fetched once on mount, refreshed after each scan saves a new domain
 	const [limitStatus, setLimitStatus] = useState<LimitStatus | null>(null);
 	const [limitLoading, setLimitLoading] = useState(false);
 
@@ -375,7 +395,7 @@ export default function ScanPage() {
 				setLimitStatus(data as LimitStatus);
 			}
 		} catch {
-			// Non-critical — silently ignore
+			// Non-critical
 		} finally {
 			setLimitLoading(false);
 		}
@@ -384,7 +404,7 @@ export default function ScanPage() {
 	useEffect(() => {
 		if (authLoading) return;
 		if (!user) {
-			setAuthOpen(true);
+			setTimeout(() => setAuthOpen(true), 0);
 			return;
 		}
 		fetchLimitStatus();
@@ -397,7 +417,6 @@ export default function ScanPage() {
 
 	const onAnalyze = async () => {
 		if (!canAnalyze) return;
-
 		setLoading(true);
 		setResult(null);
 
@@ -418,9 +437,7 @@ export default function ScanPage() {
 					});
 					return;
 				}
-
 				if (res.status === 403 && json?.requiresUpgrade) {
-					// Defensive: shouldn't happen since we check upfront, but update limit state
 					setLimitStatus({
 						tier: json.tier ?? 'free',
 						limit: json.limit ?? 1,
@@ -430,7 +447,6 @@ export default function ScanPage() {
 					});
 					return;
 				}
-
 				setResult({ error: json?.error || 'Analysis failed.' });
 				toast.error(json?.error || 'Analysis failed.');
 				return;
@@ -438,7 +454,6 @@ export default function ScanPage() {
 
 			setResult(json);
 
-			// Save to DB and refresh limit (a new domain may have been added)
 			try {
 				const saveRes = await fetch('/api/scans', {
 					method: 'POST',
@@ -454,6 +469,8 @@ export default function ScanPage() {
 					const scanId = saveJson?.scan?.id;
 					toast.success('Scan saved!');
 					if (scanId) {
+						// Fire video render in background — does not block redirect
+						triggerVideoRender(scanId, cleanedUrl);
 						router.push(`/scan/${scanId}`);
 					} else {
 						await fetchLimitStatus();
@@ -633,7 +650,6 @@ export default function ScanPage() {
 				onClose={closeAuth}
 				initialMode='login'
 			/>
-
 			{loading ? <AriAnalyzingOverlay url={cleanedUrl} /> : null}
 
 			<main className='flex-1 bg-cream-50'>
@@ -664,7 +680,6 @@ export default function ScanPage() {
 						<label className='text-xs font-medium uppercase tracking-[0.12em] text-choco-600'>
 							Homepage URL
 						</label>
-
 						<div className='mt-2 flex flex-col gap-3 sm:flex-row'>
 							<input
 								value={targetUrl}
@@ -677,7 +692,6 @@ export default function ScanPage() {
 									if (e.key === 'Enter') onAnalyze();
 								}}
 							/>
-
 							<Button
 								type='button'
 								className='shrink-0 sm:px-6'
@@ -699,7 +713,6 @@ export default function ScanPage() {
 							</Button>
 						</div>
 
-						{/* Limit reached — shown immediately, no analyzing required */}
 						{!limitLoading && isAtLimit && limitStatus ? (
 							<ScanLimitBanner
 								limitStatus={limitStatus}
@@ -735,8 +748,6 @@ export default function ScanPage() {
 										</p>
 									</div>
 								)}
-
-								{/* Usage counter — subtle, only when not at limit */}
 								{!limitLoading && limitStatus && (
 									<p className='mt-3 text-[11px] text-choco-400'>
 										{limitStatus.current} /{' '}
@@ -752,7 +763,6 @@ export default function ScanPage() {
 						)}
 					</div>
 
-					{/* Post-analyze results (only shown when not at limit) */}
 					{result &&
 						!isAtLimit &&
 						(result.error ? (
