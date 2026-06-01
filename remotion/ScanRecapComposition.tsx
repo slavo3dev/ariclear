@@ -1,10 +1,11 @@
 // remotion/ScanRecapComposition.tsx
-// The actual video template. 4 scenes × 90 frames (3s) = 360 frames (12s) at 30fps.
+// 15-second emotional story about how a visitor experiences a website.
+// 5 scenes × 90 frames (3s each) = 450 frames at 30fps.
+// All content driven by real scan data — no screenshots needed.
 
 import {
 	AbsoluteFill,
 	Audio,
-	Img,
 	interpolate,
 	Sequence,
 	spring,
@@ -27,255 +28,107 @@ export type ScanRecapProps = {
 	suggestedHeadline: string;
 	suggestedCta: string;
 	voiceoverUrl: string;
-	sceneImages: string[];
+	sceneImages: string[]; // kept for API compat, not used
 	style: 'bold' | 'clean' | 'warm' | 'urgent';
 };
 
-// ─── Style themes ─────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const THEMES = {
-	bold: {
-		bg: '#0a0a0a',
-		accent: '#ffffff',
-		text: '#ffffff',
-		muted: 'rgba(255,255,255,0.5)',
-		card: 'rgba(255,255,255,0.08)',
-		border: 'rgba(255,255,255,0.15)',
-		badge: '#ffffff',
-		badgeText: '#0a0a0a',
-	},
-	clean: {
-		bg: '#f8f5f0',
-		accent: '#3c2a18',
-		text: '#1a1008',
-		muted: 'rgba(60,42,24,0.5)',
-		card: 'rgba(60,42,24,0.06)',
-		border: 'rgba(60,42,24,0.12)',
-		badge: '#3c2a18',
-		badgeText: '#f8f5f0',
-	},
-	warm: {
-		bg: '#3c2a18',
-		accent: '#f5ede3',
-		text: '#f5ede3',
-		muted: 'rgba(245,237,227,0.55)',
-		card: 'rgba(245,237,227,0.1)',
-		border: 'rgba(245,237,227,0.2)',
-		badge: '#f5ede3',
-		badgeText: '#3c2a18',
-	},
-	urgent: {
-		bg: '#1a0a0a',
-		accent: '#f87171',
-		text: '#ffffff',
-		muted: 'rgba(255,255,255,0.5)',
-		card: 'rgba(248,113,113,0.1)',
-		border: 'rgba(248,113,113,0.25)',
-		badge: '#f87171',
-		badgeText: '#ffffff',
-	},
+const FRAMES_PER_SCENE = 90; // 3s at 30fps
+const TOTAL_SCENES = 5;
+
+// ─── Colors ───────────────────────────────────────────────────────────────────
+
+const C = {
+	bg: '#0d0804',
+	bgMid: '#1c1008',
+	choco: '#3c2a18',
+	cream: '#f5ede3',
+	creamDim: 'rgba(245,237,227,0.6)',
+	creamFaint: 'rgba(245,237,227,0.2)',
+	red: '#f87171',
+	redDim: 'rgba(248,113,113,0.25)',
+	redBorder: 'rgba(248,113,113,0.5)',
+	green: '#4ade80',
+	greenDim: 'rgba(74,222,128,0.15)',
+	greenBorder: 'rgba(74,222,128,0.4)',
+	white: '#ffffff',
+	whiteFaint: 'rgba(255,255,255,0.08)',
+	whiteDim: 'rgba(255,255,255,0.25)',
 };
 
-// ─── Score color ──────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function scoreColor(score: number) {
-	if (score >= 75) return '#4ade80';
-	if (score >= 50) return '#fbbf24';
-	return '#f87171';
+function clamp(v: number, lo = 0, hi = 1) {
+	return Math.min(Math.max(v, lo), hi);
 }
 
-// ─── Animated score ring ──────────────────────────────────────────────────────
-
-function ScoreRing({
-	score,
-	label,
-	size,
-	frame,
-	delay = 0,
-}: {
-	score: number;
-	label: string;
-	size: number;
-	frame: number;
-	delay?: number;
-}) {
-	const { fps } = useVideoConfig();
-	const r = size / 2 - 12;
-	const circ = 2 * Math.PI * r;
-
-	const progress = spring({
-		frame: frame - delay,
-		fps,
-		config: { damping: 80, stiffness: 60, mass: 1 },
-		durationInFrames: 45,
-	});
-
-	const fill = progress * (score / 100) * circ;
-	const opacity = interpolate(frame - delay, [0, 15], [0, 1], {
-		extrapolateLeft: 'clamp',
-		extrapolateRight: 'clamp',
-	});
-	const translateY = interpolate(frame - delay, [0, 20], [30, 0], {
-		extrapolateLeft: 'clamp',
-		extrapolateRight: 'clamp',
-	});
-
-	return (
-		<div
-			style={{
-				display: 'flex',
-				flexDirection: 'column',
-				alignItems: 'center',
-				gap: 12,
-				opacity,
-				transform: `translateY(${translateY}px)`,
-			}}>
-			<div style={{ position: 'relative', width: size, height: size }}>
-				<svg
-					style={{
-						position: 'absolute',
-						inset: 0,
-						transform: 'rotate(-90deg)',
-					}}
-					viewBox={`0 0 ${size} ${size}`}>
-					<circle
-						cx={size / 2}
-						cy={size / 2}
-						r={r}
-						fill='none'
-						stroke='rgba(255,255,255,0.12)'
-						strokeWidth={10}
-					/>
-					<circle
-						cx={size / 2}
-						cy={size / 2}
-						r={r}
-						fill='none'
-						stroke={scoreColor(score)}
-						strokeWidth={10}
-						strokeDasharray={`${fill} ${circ}`}
-						strokeLinecap='round'
-					/>
-				</svg>
-				<div
-					style={{
-						position: 'absolute',
-						inset: 0,
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-					}}>
-					<span
-						style={{
-							fontSize: size * 0.28,
-							fontWeight: 800,
-							color: '#ffffff',
-							fontFamily: 'sans-serif',
-						}}>
-						{score}
-					</span>
-				</div>
-			</div>
-			<span
-				style={{
-					fontSize: 28,
-					fontWeight: 600,
-					color: 'rgba(255,255,255,0.65)',
-					fontFamily: 'sans-serif',
-					letterSpacing: '0.12em',
-					textTransform: 'uppercase',
-				}}>
-				{label}
-			</span>
-		</div>
-	);
+function fadeIn(frame: number, start = 0, duration = 15) {
+	return clamp(interpolate(frame, [start, start + duration], [0, 1]));
 }
 
-// ─── Scene background ─────────────────────────────────────────────────────────
+function slideUp(frame: number, start = 0, duration = 20) {
+	return clamp(interpolate(frame, [start, start + duration], [40, 0]));
+}
 
-function SceneBg({
-	imageUrl,
-	theme,
-}: {
-	imageUrl: string;
-	theme: typeof THEMES.bold;
-}) {
-	return (
-		<AbsoluteFill>
-			{imageUrl ? (
-				<>
-					<Img
-						src={imageUrl}
-						style={{
-							width: '100%',
-							height: '100%',
-							objectFit: 'cover',
-						}}
-					/>
-					<div
-						style={{
-							position: 'absolute',
-							inset: 0,
-							background:
-								'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.75) 100%)',
-						}}
-					/>
-				</>
-			) : (
-				<div
-					style={{
-						width: '100%',
-						height: '100%',
-						background: theme.bg,
-					}}
-				/>
-			)}
-		</AbsoluteFill>
-	);
+// function scoreColor(score: number) {
+// 	if (score >= 75) return C.green;
+// 	if (score >= 50) return '#fbbf24';
+// 	return C.red;
+// }
+
+// ─── Typing effect ────────────────────────────────────────────────────────────
+
+function useTyping(
+	text: string,
+	frame: number,
+	startFrame = 0,
+	charsPerFrame = 0.8,
+) {
+	const chars = Math.floor(Math.max(0, frame - startFrame) * charsPerFrame);
+	return text.slice(0, chars);
 }
 
 // ─── Progress bars ────────────────────────────────────────────────────────────
 
 function ProgressBars({
-	currentScene,
+	scene,
 	frameInScene,
-	framesPerScene,
 }: {
-	currentScene: number;
+	scene: number;
 	frameInScene: number;
-	framesPerScene: number;
 }) {
 	return (
 		<div
 			style={{
 				position: 'absolute',
-				top: 60,
+				top: 56,
 				left: 48,
 				right: 48,
 				display: 'flex',
-				gap: 12,
-				zIndex: 10,
+				gap: 10,
+				zIndex: 20,
 			}}>
-			{[0, 1, 2, 3].map((i) => (
+			{Array.from({ length: TOTAL_SCENES }).map((_, i) => (
 				<div
 					key={i}
 					style={{
 						flex: 1,
-						height: 6,
-						borderRadius: 3,
-						background: 'rgba(255,255,255,0.2)',
+						height: 4,
+						borderRadius: 2,
+						background: 'rgba(255,255,255,0.15)',
 						overflow: 'hidden',
 					}}>
 					<div
 						style={{
 							height: '100%',
-							borderRadius: 3,
-							background: 'rgba(255,255,255,0.9)',
+							borderRadius: 2,
+							background: 'rgba(255,255,255,0.85)',
 							width:
-								i < currentScene
+								i < scene
 									? '100%'
-									: i === currentScene
-										? `${(frameInScene / framesPerScene) * 100}%`
+									: i === scene
+										? `${(frameInScene / FRAMES_PER_SCENE) * 100}%`
 										: '0%',
 						}}
 					/>
@@ -285,17 +138,23 @@ function ProgressBars({
 	);
 }
 
-// ─── AriClear watermark ───────────────────────────────────────────────────────
+// ─── Watermark ────────────────────────────────────────────────────────────────
 
-function Watermark() {
+function Watermark({ opacity = 0.3 }: { opacity?: number }) {
 	return (
 		<div
-			style={{ position: 'absolute', bottom: 60, right: 48, zIndex: 10 }}>
+			style={{
+				position: 'absolute',
+				bottom: 56,
+				right: 48,
+				zIndex: 20,
+				opacity,
+			}}>
 			<span
 				style={{
-					fontSize: 28,
+					fontSize: 24,
 					fontWeight: 800,
-					color: 'rgba(255,255,255,0.35)',
+					color: C.cream,
 					fontFamily: 'sans-serif',
 					letterSpacing: '0.2em',
 					textTransform: 'uppercase',
@@ -306,371 +165,10 @@ function Watermark() {
 	);
 }
 
-// ─── Scene 0: Scores ─────────────────────────────────────────────────────────
+// ─── Scene 0: ARRIVAL ────────────────────────────────────────────────────────
+// Domain types itself. "A visitor just landed..."  Cursor blinks.
 
-function Scene0Scores({
-	props,
-	frame,
-}: {
-	props: ScanRecapProps;
-	frame: number;
-}) {
-	const domainOpacity = interpolate(frame, [0, 20], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const domainTranslate = interpolate(frame, [0, 20], [40, 0], {
-		extrapolateRight: 'clamp',
-	});
-	const labelOpacity = interpolate(frame, [20, 40], [0, 1], {
-		extrapolateLeft: 'clamp',
-		extrapolateRight: 'clamp',
-	});
-
-	return (
-		<AbsoluteFill
-			style={{
-				display: 'flex',
-				flexDirection: 'column',
-				alignItems: 'center',
-				justifyContent: 'center',
-				gap: 64,
-				paddingTop: 120,
-			}}>
-			<div
-				style={{
-					textAlign: 'center',
-					opacity: domainOpacity,
-					transform: `translateY(${domainTranslate}px)`,
-				}}>
-				<div
-					style={{
-						fontSize: 28,
-						fontWeight: 600,
-						color: 'rgba(255,255,255,0.55)',
-						fontFamily: 'sans-serif',
-						letterSpacing: '0.2em',
-						textTransform: 'uppercase',
-						marginBottom: 16,
-					}}>
-					AriClear scan
-				</div>
-				<div
-					style={{
-						fontSize: 72,
-						fontWeight: 900,
-						color: '#ffffff',
-						fontFamily: 'sans-serif',
-					}}>
-					{props.domain}
-				</div>
-			</div>
-
-			<div style={{ display: 'flex', alignItems: 'center', gap: 80 }}>
-				<ScoreRing
-					score={props.clarityScore}
-					label='Clarity'
-					size={200}
-					frame={frame}
-					delay={10}
-				/>
-				<div
-					style={{
-						display: 'flex',
-						flexDirection: 'column',
-						alignItems: 'center',
-						gap: 12,
-						opacity: interpolate(frame, [15, 35], [0, 1], {
-							extrapolateLeft: 'clamp',
-							extrapolateRight: 'clamp',
-						}),
-					}}>
-					<div
-						style={{
-							width: 220,
-							height: 220,
-							borderRadius: '50%',
-							background: 'rgba(255,255,255,0.1)',
-							border: '3px solid rgba(255,255,255,0.3)',
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-						}}>
-						<span
-							style={{
-								fontSize: 72,
-								fontWeight: 900,
-								color: '#ffffff',
-								fontFamily: 'sans-serif',
-							}}>
-							{props.overallScore}
-						</span>
-					</div>
-					<span
-						style={{
-							fontSize: 28,
-							fontWeight: 600,
-							color: 'rgba(255,255,255,0.65)',
-							fontFamily: 'sans-serif',
-							letterSpacing: '0.12em',
-							textTransform: 'uppercase',
-						}}>
-						Overall
-					</span>
-				</div>
-				<ScoreRing
-					score={props.aiScore}
-					label='AI-SEO'
-					size={200}
-					frame={frame}
-					delay={20}
-				/>
-			</div>
-
-			<div style={{ display: 'flex', gap: 24, opacity: labelOpacity }}>
-				{[
-					{ score: props.clarityScore, label: 'Clarity' },
-					{ score: props.aiScore, label: 'AI-SEO' },
-				].map(({ score, label }) => (
-					<div
-						key={label}
-						style={{
-							borderRadius: 999,
-							padding: '16px 32px',
-							background: scoreColor(score) + '33',
-							border: `2px solid ${scoreColor(score)}66`,
-						}}>
-						<span
-							style={{
-								fontSize: 28,
-								fontWeight: 700,
-								color: scoreColor(score),
-								fontFamily: 'sans-serif',
-							}}>
-							{label}:{' '}
-							{score >= 75
-								? 'Strong'
-								: score >= 50
-									? 'Average'
-									: 'Needs work'}
-						</span>
-					</div>
-				))}
-			</div>
-		</AbsoluteFill>
-	);
-}
-
-// ─── Scene 1: First impression ────────────────────────────────────────────────
-
-function Scene1Impression({
-	props,
-	frame,
-}: {
-	props: ScanRecapProps;
-	frame: number;
-}) {
-	const tagOpacity = interpolate(frame, [0, 15], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const textOpacity = interpolate(frame, [10, 30], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const textTranslate = interpolate(frame, [10, 30], [40, 0], {
-		extrapolateRight: 'clamp',
-	});
-	const audOpacity = interpolate(frame, [30, 50], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-
-	return (
-		<AbsoluteFill
-			style={{
-				display: 'flex',
-				flexDirection: 'column',
-				alignItems: 'center',
-				justifyContent: 'center',
-				gap: 48,
-				padding: '0 80px',
-			}}>
-			<div
-				style={{
-					opacity: tagOpacity,
-					borderRadius: 999,
-					padding: '14px 32px',
-					background: 'rgba(255,255,255,0.1)',
-					border: '2px solid rgba(255,255,255,0.2)',
-				}}>
-				<span
-					style={{
-						fontSize: 26,
-						fontWeight: 700,
-						color: 'rgba(255,255,255,0.7)',
-						fontFamily: 'sans-serif',
-						letterSpacing: '0.2em',
-						textTransform: 'uppercase',
-					}}>
-					First impression
-				</span>
-			</div>
-			<div
-				style={{
-					opacity: textOpacity,
-					transform: `translateY(${textTranslate}px)`,
-					textAlign: 'center',
-				}}>
-				<span
-					style={{
-						fontSize: 56,
-						fontWeight: 700,
-						color: '#ffffff',
-						fontFamily: 'sans-serif',
-						lineHeight: 1.35,
-					}}>
-					&ldquo;{props.firstImpression}&rdquo;
-				</span>
-			</div>
-			<div style={{ opacity: audOpacity, textAlign: 'center' }}>
-				<span
-					style={{
-						fontSize: 34,
-						color: 'rgba(255,255,255,0.55)',
-						fontFamily: 'sans-serif',
-					}}>
-					Audience: {props.audience}
-				</span>
-			</div>
-		</AbsoluteFill>
-	);
-}
-
-// ─── Scene 2: Problem / Solution ──────────────────────────────────────────────
-
-function Scene2ProblemSolution({
-	props,
-	frame,
-}: {
-	props: ScanRecapProps;
-	frame: number;
-}) {
-	const problemOpacity = interpolate(frame, [0, 20], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const problemTranslate = interpolate(frame, [0, 20], [-60, 0], {
-		extrapolateRight: 'clamp',
-	});
-	const arrowOpacity = interpolate(frame, [20, 35], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const solutionOpacity = interpolate(frame, [30, 50], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const solutionTranslate = interpolate(frame, [30, 50], [60, 0], {
-		extrapolateRight: 'clamp',
-	});
-
-	return (
-		<AbsoluteFill
-			style={{
-				display: 'flex',
-				flexDirection: 'column',
-				alignItems: 'center',
-				justifyContent: 'center',
-				gap: 40,
-				padding: '0 80px',
-			}}>
-			<div
-				style={{
-					width: '100%',
-					borderRadius: 32,
-					padding: 48,
-					background: 'rgba(248,113,113,0.15)',
-					border: '2px solid rgba(248,113,113,0.4)',
-					opacity: problemOpacity,
-					transform: `translateX(${problemTranslate}px)`,
-				}}>
-				<div
-					style={{
-						fontSize: 26,
-						fontWeight: 700,
-						color: '#fca5a5',
-						fontFamily: 'sans-serif',
-						letterSpacing: '0.2em',
-						textTransform: 'uppercase',
-						marginBottom: 20,
-					}}>
-					⚠ Problem
-				</div>
-				<div
-					style={{
-						fontSize: 46,
-						fontWeight: 700,
-						color: '#ffffff',
-						fontFamily: 'sans-serif',
-						lineHeight: 1.3,
-					}}>
-					{props.topIssue}
-				</div>
-			</div>
-			<div
-				style={{
-					opacity: arrowOpacity,
-					fontSize: 56,
-					color: 'rgba(255,255,255,0.4)',
-				}}>
-				↓
-			</div>
-			<div
-				style={{
-					width: '100%',
-					borderRadius: 32,
-					padding: 48,
-					background: 'rgba(74,222,128,0.12)',
-					border: '2px solid rgba(74,222,128,0.35)',
-					opacity: solutionOpacity,
-					transform: `translateX(${solutionTranslate}px)`,
-				}}>
-				<div
-					style={{
-						fontSize: 26,
-						fontWeight: 700,
-						color: '#86efac',
-						fontFamily: 'sans-serif',
-						letterSpacing: '0.2em',
-						textTransform: 'uppercase',
-						marginBottom: 20,
-					}}>
-					✓ Fix
-				</div>
-				<div
-					style={{
-						fontSize: 46,
-						fontWeight: 700,
-						color: '#ffffff',
-						fontFamily: 'sans-serif',
-						lineHeight: 1.3,
-					}}>
-					{props.actionTitle}
-				</div>
-				{props.actionDetails && (
-					<div
-						style={{
-							fontSize: 32,
-							color: 'rgba(255,255,255,0.6)',
-							fontFamily: 'sans-serif',
-							lineHeight: 1.5,
-							marginTop: 20,
-						}}>
-						{props.actionDetails.slice(0, 120)}
-					</div>
-				)}
-			</div>
-		</AbsoluteFill>
-	);
-}
-
-// ─── Scene 3: Suggested headline + CTA ───────────────────────────────────────
-
-function Scene3Headline({
+function Scene0Arrival({
 	props,
 	frame,
 }: {
@@ -679,126 +177,832 @@ function Scene3Headline({
 }) {
 	const { fps } = useVideoConfig();
 
-	const tagOpacity = interpolate(frame, [0, 15], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const headlineScale = spring({
-		frame,
-		fps,
-		config: { damping: 80, stiffness: 60 },
-		durationInFrames: 40,
-	});
-	const headlineOpacity = interpolate(frame, [5, 25], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const ctaOpacity = interpolate(frame, [40, 60], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
-	const watermarkOp = interpolate(frame, [60, 80], [0, 1], {
-		extrapolateRight: 'clamp',
-	});
+	// "A visitor just landed on..." fades in at frame 10
+	const labelOp = fadeIn(frame, 10, 20);
 
-	const scale = interpolate(headlineScale, [0, 1], [0.92, 1]);
+	// Domain types itself starting frame 20
+	const domainTyped = useTyping(props.domain, frame, 20, 1.2);
+
+	// Cursor blink — alternates every 15 frames
+	const cursorVisible = Math.floor(frame / 15) % 2 === 0;
+
+	// Tagline fades in at frame 55
+	const tagOp = fadeIn(frame, 55, 20);
+	const tagY = slideUp(frame, 55, 20);
+
+	// Visitor dot animates in
+	const dotScale = spring({
+		frame: frame - 40,
+		fps,
+		config: { damping: 14, stiffness: 180 },
+		durationInFrames: 30,
+	});
+	const dotOp = clamp(interpolate(frame, [40, 55], [0, 1]));
 
 	return (
 		<AbsoluteFill
 			style={{
+				background: `radial-gradient(ellipse at center, ${C.bgMid} 0%, ${C.bg} 100%)`,
 				display: 'flex',
 				flexDirection: 'column',
 				alignItems: 'center',
 				justifyContent: 'center',
-				gap: 56,
-				padding: '0 80px',
-				textAlign: 'center',
+				gap: 0,
 			}}>
-			<div
-				style={{
-					opacity: tagOpacity,
-					borderRadius: 999,
-					padding: '14px 32px',
-					background: 'rgba(255,255,255,0.1)',
-					border: '2px solid rgba(255,255,255,0.2)',
-				}}>
+			{/* Label */}
+			<div style={{ opacity: labelOp, marginBottom: 32 }}>
 				<span
 					style={{
-						fontSize: 26,
-						fontWeight: 700,
-						color: 'rgba(255,255,255,0.7)',
+						fontSize: 28,
+						fontWeight: 500,
+						color: C.creamDim,
 						fontFamily: 'sans-serif',
-						letterSpacing: '0.2em',
-						textTransform: 'uppercase',
+						letterSpacing: '0.08em',
 					}}>
-					Suggested headline
+					A visitor just landed on...
 				</span>
 			</div>
-			<div
-				style={{
-					opacity: headlineOpacity,
-					transform: `scale(${scale})`,
-				}}>
-				<span
-					style={{
-						fontSize: 64,
-						fontWeight: 900,
-						color: '#ffffff',
-						fontFamily: 'sans-serif',
-						lineHeight: 1.25,
-					}}>
-					&ldquo;{props.suggestedHeadline}&rdquo;
-				</span>
-			</div>
+
+			{/* Typing domain */}
 			<div
 				style={{
 					display: 'flex',
 					alignItems: 'center',
-					gap: 32,
-					opacity: ctaOpacity,
+					minHeight: 100,
+				}}>
+				<span
+					style={{
+						fontSize: 88,
+						fontWeight: 900,
+						color: C.cream,
+						fontFamily: 'sans-serif',
+						letterSpacing: '-0.02em',
+					}}>
+					{domainTyped}
+				</span>
+				<span
+					style={{
+						fontSize: 88,
+						fontWeight: 900,
+						color: cursorVisible ? C.cream : 'transparent',
+						fontFamily: 'sans-serif',
+						marginLeft: 4,
+						transition: 'color 0.05s',
+					}}>
+					|
+				</span>
+			</div>
+
+			{/* Visitor dot */}
+			<div
+				style={{
+					marginTop: 48,
+					opacity: dotOp,
+					transform: `scale(${dotScale})`,
+					display: 'flex',
+					flexDirection: 'column',
+					alignItems: 'center',
+					gap: 12,
 				}}>
 				<div
 					style={{
-						borderRadius: 999,
-						padding: '20px 48px',
-						background: 'rgba(255,255,255,0.15)',
-						border: '2px solid rgba(255,255,255,0.3)',
+						width: 64,
+						height: 64,
+						borderRadius: '50%',
+						background: C.whiteFaint,
+						border: `2px solid ${C.whiteDim}`,
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						fontSize: 36,
 					}}>
-					<span
-						style={{
-							fontSize: 36,
-							fontWeight: 700,
-							color: '#ffffff',
-							fontFamily: 'sans-serif',
-						}}>
-						{props.suggestedCta}
-					</span>
+					🧑‍💻
 				</div>
 				<span
 					style={{
-						fontSize: 32,
-						color: 'rgba(255,255,255,0.45)',
+						fontSize: 22,
+						color: C.creamDim,
 						fontFamily: 'sans-serif',
 					}}>
-					→ {props.domain}
+					Visitor arrived
 				</span>
 			</div>
+
+			{/* Tagline */}
 			<div
 				style={{
-					opacity: watermarkOp,
-					borderRadius: 999,
-					padding: '12px 28px',
-					background: 'rgba(255,255,255,0.06)',
-					border: '1px solid rgba(255,255,255,0.12)',
+					marginTop: 56,
+					opacity: tagOp,
+					transform: `translateY(${tagY}px)`,
 				}}>
 				<span
 					style={{
+						fontSize: 26,
+						color: C.creamFaint,
+						fontFamily: 'sans-serif',
+						letterSpacing: '0.05em',
+					}}>
+					What do they see? What do they feel?
+				</span>
+			</div>
+		</AbsoluteFill>
+	);
+}
+
+// ─── Scene 1: CONFUSION ──────────────────────────────────────────────────────
+// Screen shakes. Real headline quoted. Question marks rain in.
+
+function Scene1Confusion({
+	props,
+	frame,
+}: {
+	props: ScanRecapProps;
+	frame: number;
+}) {
+	const { fps } = useVideoConfig();
+
+	// Shake — rapid oscillation for first 20 frames
+	const shakeX =
+		frame < 20
+			? Math.sin(frame * 1.8) * interpolate(frame, [0, 20], [14, 0])
+			: 0;
+	const shakeY =
+		frame < 20
+			? Math.cos(frame * 2.1) * interpolate(frame, [0, 20], [8, 0])
+			: 0;
+
+	// "They read:" label
+	const labelOp = fadeIn(frame, 18, 15);
+
+	// Headline fades in at 25
+	const headlineOp = fadeIn(frame, 25, 20);
+	const headlineY = slideUp(frame, 25, 20);
+
+	// Question marks — staggered
+	const qMarks = ['?', '?', '?', '?', '?'];
+	const qPositions = [
+		{ x: 80, y: 200 },
+		{ x: 900, y: 280 },
+		{ x: 480, y: 160 },
+		{ x: 180, y: 580 },
+		{ x: 820, y: 500 },
+	];
+
+	// Confused score badge
+	const scoreBadgeOp = fadeIn(frame, 55, 20);
+	const scoreBadgeScale = spring({
+		frame: frame - 55,
+		fps,
+		config: { damping: 12, stiffness: 200 },
+		durationInFrames: 25,
+	});
+
+	const headline =
+		props.firstImpression.length > 80
+			? props.firstImpression.slice(0, 80) + '…'
+			: props.firstImpression;
+
+	return (
+		<AbsoluteFill
+			style={{
+				background: `radial-gradient(ellipse at center, #1a0a0a 0%, ${C.bg} 100%)`,
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				justifyContent: 'center',
+				transform: `translate(${shakeX}px, ${shakeY}px)`,
+			}}>
+			{/* Question marks */}
+			{qMarks.map((q, i) => (
+				<div
+					key={i}
+					style={{
+						position: 'absolute',
+						left: qPositions[i].x,
+						top: qPositions[i].y,
+						opacity: clamp(
+							interpolate(
+								frame,
+								[10 + i * 8, 28 + i * 8],
+								[0, 0.35],
+							),
+						),
+						fontSize: 72 + i * 12,
+						color: C.red,
+						fontFamily: 'sans-serif',
+						fontWeight: 900,
+						transform: `rotate(${(i % 2 === 0 ? 1 : -1) * (10 + i * 5)}deg)`,
+					}}>
+					{q}
+				</div>
+			))}
+
+			{/* "They read:" */}
+			<div style={{ opacity: labelOp, marginBottom: 24 }}>
+				<span
+					style={{
+						fontSize: 30,
+						fontWeight: 600,
+						color: C.creamDim,
+						fontFamily: 'sans-serif',
+						letterSpacing: '0.06em',
+					}}>
+					They read:
+				</span>
+			</div>
+
+			{/* Quoted headline */}
+			<div
+				style={{
+					opacity: headlineOp,
+					transform: `translateY(${headlineY}px)`,
+					maxWidth: 860,
+					textAlign: 'center',
+					padding: '0 60px',
+					background: 'rgba(248,113,113,0.08)',
+					border: `2px solid ${C.redBorder}`,
+					borderRadius: 24,
+					margin: '0 48px',
+				}}>
+				<span
+					style={{
+						fontSize: 52,
+						fontWeight: 700,
+						color: C.cream,
+						fontFamily: 'sans-serif',
+						lineHeight: 1.3,
+						fontStyle: 'italic',
+					}}>
+					&ldquo;{headline}&rdquo;
+				</span>
+			</div>
+
+			{/* Confused score */}
+			<div
+				style={{
+					marginTop: 56,
+					opacity: scoreBadgeOp,
+					transform: `scale(${scoreBadgeScale})`,
+					display: 'flex',
+					alignItems: 'center',
+					gap: 20,
+				}}>
+				<span style={{ fontSize: 48 }}>😕</span>
+				<div
+					style={{
+						borderRadius: 999,
+						padding: '14px 32px',
+						background: C.redDim,
+						border: `2px solid ${C.redBorder}`,
+					}}>
+					<span
+						style={{
+							fontSize: 32,
+							fontWeight: 800,
+							color: C.red,
+							fontFamily: 'sans-serif',
+						}}>
+						Clarity: {props.clarityScore}/100
+					</span>
+				</div>
+			</div>
+		</AbsoluteFill>
+	);
+}
+
+// ─── Scene 2: PROBLEM ────────────────────────────────────────────────────────
+// Visitor walks away. Top issue slams in red. Score fills — stops red.
+
+function Scene2Problem({
+	props,
+	frame,
+}: {
+	props: ScanRecapProps;
+	frame: number;
+}) {
+	const { fps } = useVideoConfig();
+
+	// Visitor walks away — moves right off screen
+	const visitorX = interpolate(frame, [0, 45], [0, 600], {
+		extrapolateRight: 'clamp',
+	});
+	const visitorOp = clamp(interpolate(frame, [35, 50], [1, 0]));
+
+	// "They leave in 5 seconds" fades in
+	const leaveOp = fadeIn(frame, 5, 20);
+
+	// Issue card slams in at frame 30
+	const issueScale = spring({
+		frame: frame - 30,
+		fps,
+		config: { damping: 10, stiffness: 300, mass: 0.8 },
+		durationInFrames: 20,
+	});
+	const issueOp = clamp(interpolate(frame, [30, 40], [0, 1]));
+
+	// Score ring fills to clarityScore but stops — red
+	const ringProgress = spring({
+		frame: frame - 45,
+		fps,
+		config: { damping: 80, stiffness: 40 },
+		durationInFrames: 40,
+	});
+	const r = 44;
+	const circ = 2 * Math.PI * r;
+	const fill = ringProgress * (props.clarityScore / 100) * circ;
+	const ringOp = fadeIn(frame, 45, 15);
+
+	const issue =
+		props.topIssue.length > 70
+			? props.topIssue.slice(0, 70) + '…'
+			: props.topIssue;
+
+	return (
+		<AbsoluteFill
+			style={{
+				background: `radial-gradient(ellipse at 30% 50%, #1a0505 0%, ${C.bg} 100%)`,
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				justifyContent: 'center',
+				gap: 40,
+			}}>
+			{/* Visitor walking away */}
+			<div
+				style={{
+					display: 'flex',
+					alignItems: 'center',
+					gap: 24,
+					opacity: visitorOp,
+					transform: `translateX(${visitorX}px)`,
+					alignSelf: 'flex-start',
+					marginLeft: 80,
+					marginBottom: -20,
+				}}>
+				<span style={{ fontSize: 60 }}>🧑‍💻</span>
+				<div style={{ display: 'flex', gap: 8 }}>
+					{['→', '→', '→'].map((a, i) => (
+						<span
+							key={i}
+							style={{
+								fontSize: 36,
+								color: C.red,
+								opacity: clamp(
+									interpolate(
+										frame,
+										[i * 8, i * 8 + 15],
+										[0, 0.8],
+									),
+								),
+							}}>
+							{a}
+						</span>
+					))}
+				</div>
+			</div>
+
+			{/* "They leave in 5 seconds" */}
+			<div style={{ opacity: leaveOp }}>
+				<span
+					style={{
+						fontSize: 34,
+						fontWeight: 600,
+						color: C.creamDim,
+						fontFamily: 'sans-serif',
+					}}>
+					They leave in 5 seconds.
+				</span>
+			</div>
+
+			{/* Issue card */}
+			<div
+				style={{
+					opacity: issueOp,
+					transform: `scale(${issueScale})`,
+					width: 860,
+					borderRadius: 28,
+					padding: 48,
+					background: C.redDim,
+					border: `2px solid ${C.redBorder}`,
+					margin: '0 48px',
+				}}>
+				<div
+					style={{
 						fontSize: 24,
+						fontWeight: 700,
+						color: C.red,
+						fontFamily: 'sans-serif',
+						letterSpacing: '0.18em',
+						textTransform: 'uppercase',
+						marginBottom: 20,
+					}}>
+					⚠ Top issue
+				</div>
+				<div
+					style={{
+						fontSize: 50,
 						fontWeight: 800,
-						color: 'rgba(255,255,255,0.4)',
+						color: C.cream,
+						fontFamily: 'sans-serif',
+						lineHeight: 1.25,
+					}}>
+					{issue}
+				</div>
+			</div>
+
+			{/* Score ring — fills red, stops */}
+			<div
+				style={{
+					opacity: ringOp,
+					display: 'flex',
+					alignItems: 'center',
+					gap: 24,
+				}}>
+				<div style={{ position: 'relative', width: 100, height: 100 }}>
+					<svg
+						style={{
+							position: 'absolute',
+							inset: 0,
+							transform: 'rotate(-90deg)',
+						}}
+						viewBox='0 0 100 100'>
+						<circle
+							cx='50'
+							cy='50'
+							r={r}
+							fill='none'
+							stroke='rgba(255,255,255,0.1)'
+							strokeWidth={8}
+						/>
+						<circle
+							cx='50'
+							cy='50'
+							r={r}
+							fill='none'
+							stroke={C.red}
+							strokeWidth={8}
+							strokeDasharray={`${fill} ${circ}`}
+							strokeLinecap='round'
+						/>
+					</svg>
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}>
+						<span
+							style={{
+								fontSize: 28,
+								fontWeight: 900,
+								color: C.red,
+								fontFamily: 'sans-serif',
+							}}>
+							{props.clarityScore}
+						</span>
+					</div>
+				</div>
+				<span
+					style={{
+						fontSize: 28,
+						color: C.red,
+						fontFamily: 'sans-serif',
+						fontWeight: 600,
+					}}>
+					Clarity stuck here
+				</span>
+			</div>
+		</AbsoluteFill>
+	);
+}
+
+// ─── Scene 3: CLARITY ────────────────────────────────────────────────────────
+// Screen clears. New headline types in green. Score fills green.
+
+function Scene3Clarity({
+	props,
+	frame,
+}: {
+	props: ScanRecapProps;
+	frame: number;
+}) {
+	const { fps } = useVideoConfig();
+
+	// "What if they understood immediately?" fades in
+	const labelOp = fadeIn(frame, 0, 18);
+
+	// Clear flash at start
+	const flashOp = clamp(interpolate(frame, [0, 8], [0.4, 0]));
+
+	// New headline types in
+	const headlineTyped = useTyping(props.suggestedHeadline, frame, 20, 1.5);
+
+	// Green glow pulses around headline
+	const glowOp = clamp(interpolate(frame, [35, 55], [0, 1]));
+	const glowScale = spring({
+		frame: frame - 35,
+		fps,
+		config: { damping: 20, stiffness: 100 },
+		durationInFrames: 30,
+	});
+
+	// Score ring fills to a better score (clarityScore + 30, max 95)
+	const betterScore = Math.min(props.clarityScore + 30, 95);
+	const ringProgress = spring({
+		frame: frame - 50,
+		fps,
+		config: { damping: 60, stiffness: 50 },
+		durationInFrames: 35,
+	});
+	const r = 44;
+	const circ = 2 * Math.PI * r;
+	const fill = ringProgress * (betterScore / 100) * circ;
+	const ringOp = fadeIn(frame, 50, 15);
+
+	// Visitor returns
+	const returnOp = fadeIn(frame, 60, 20);
+	const returnScale = spring({
+		frame: frame - 60,
+		fps,
+		config: { damping: 14, stiffness: 180 },
+		durationInFrames: 20,
+	});
+
+	return (
+		<AbsoluteFill
+			style={{
+				background: `radial-gradient(ellipse at center, #051a0a 0%, ${C.bg} 100%)`,
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				justifyContent: 'center',
+				gap: 40,
+			}}>
+			{/* Flash */}
+			<div
+				style={{
+					position: 'absolute',
+					inset: 0,
+					background: 'rgba(74,222,128,0.15)',
+					opacity: flashOp,
+					pointerEvents: 'none',
+				}}
+			/>
+
+			{/* Label */}
+			<div style={{ opacity: labelOp }}>
+				<span
+					style={{
+						fontSize: 30,
+						fontWeight: 500,
+						color: C.creamDim,
+						fontFamily: 'sans-serif',
+					}}>
+					What if they understood immediately?
+				</span>
+			</div>
+
+			{/* New headline */}
+			<div
+				style={{
+					position: 'relative',
+					maxWidth: 900,
+					textAlign: 'center',
+					padding: 48,
+					margin: '0 48px',
+					background: C.greenDim,
+					border: `2px solid ${C.greenBorder}`,
+					borderRadius: 28,
+					boxShadow:
+						glowOp > 0
+							? `0 0 ${60 * glowOp}px rgba(74,222,128,0.3)`
+							: 'none',
+					transform: `scale(${glowScale})`,
+				}}>
+				<span
+					style={{
+						fontSize: 56,
+						fontWeight: 900,
+						color: C.green,
+						fontFamily: 'sans-serif',
+						lineHeight: 1.25,
+					}}>
+					&ldquo;{headlineTyped}
+					<span
+						style={{
+							color: 'rgba(74,222,128,0.7)',
+							animation: 'none',
+						}}>
+						|
+					</span>
+					&rdquo;
+				</span>
+			</div>
+
+			{/* Score ring — fills green */}
+			<div
+				style={{
+					opacity: ringOp,
+					display: 'flex',
+					alignItems: 'center',
+					gap: 24,
+				}}>
+				<div style={{ position: 'relative', width: 100, height: 100 }}>
+					<svg
+						style={{
+							position: 'absolute',
+							inset: 0,
+							transform: 'rotate(-90deg)',
+						}}
+						viewBox='0 0 100 100'>
+						<circle
+							cx='50'
+							cy='50'
+							r={r}
+							fill='none'
+							stroke='rgba(255,255,255,0.1)'
+							strokeWidth={8}
+						/>
+						<circle
+							cx='50'
+							cy='50'
+							r={r}
+							fill='none'
+							stroke={C.green}
+							strokeWidth={8}
+							strokeDasharray={`${fill} ${circ}`}
+							strokeLinecap='round'
+						/>
+					</svg>
+					<div
+						style={{
+							position: 'absolute',
+							inset: 0,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}>
+						<span
+							style={{
+								fontSize: 28,
+								fontWeight: 900,
+								color: C.green,
+								fontFamily: 'sans-serif',
+							}}>
+							{Math.round(betterScore * ringProgress)}
+						</span>
+					</div>
+				</div>
+				<span
+					style={{
+						fontSize: 28,
+						color: C.green,
+						fontFamily: 'sans-serif',
+						fontWeight: 600,
+					}}>
+					Clarity unlocked ✓
+				</span>
+			</div>
+
+			{/* Visitor returns */}
+			<div
+				style={{
+					opacity: returnOp,
+					transform: `scale(${returnScale})`,
+					display: 'flex',
+					alignItems: 'center',
+					gap: 16,
+				}}>
+				<span style={{ fontSize: 50 }}>🧑‍💻</span>
+				<span
+					style={{
+						fontSize: 28,
+						color: C.creamDim,
+						fontFamily: 'sans-serif',
+					}}>
+					They stay. They get it.
+				</span>
+				<span style={{ fontSize: 50 }}>✅</span>
+			</div>
+		</AbsoluteFill>
+	);
+}
+
+// ─── Scene 4: CTA ─────────────────────────────────────────────────────────────
+// AriClear brand moment. "Now they stay." CTA pulses.
+
+function Scene4CTA({ props, frame }: { props: ScanRecapProps; frame: number }) {
+	const { fps } = useVideoConfig();
+
+	// "Now they stay. Now they convert." types in
+	const line1 = useTyping('Now they stay.', frame, 5, 1.2);
+	const line2 = useTyping('Now they convert.', frame, 30, 1.2);
+
+	// CTA pill pulses
+	const ctaOp = fadeIn(frame, 50, 20);
+	const ctaScale = spring({
+		frame: frame - 50,
+		fps,
+		config: { damping: 12, stiffness: 200 },
+		durationInFrames: 20,
+	});
+	// Pulse: gentle scale oscillation
+	const pulse = 1 + 0.03 * Math.sin((frame - 60) * 0.18);
+
+	// Domain + ariclear
+	const brandOp = fadeIn(frame, 65, 20);
+
+	const cta = props.suggestedCta || 'Get your clarity score';
+
+	return (
+		<AbsoluteFill
+			style={{
+				background: `radial-gradient(ellipse at center, ${C.choco} 0%, ${C.bg} 100%)`,
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				justifyContent: 'center',
+				gap: 40,
+			}}>
+			{/* Main lines */}
+			<div style={{ textAlign: 'center' }}>
+				<div
+					style={{
+						fontSize: 72,
+						fontWeight: 900,
+						color: C.cream,
+						fontFamily: 'sans-serif',
+						lineHeight: 1.15,
+						minHeight: 90,
+					}}>
+					{line1}
+					{frame >= 5 && (
+						<span style={{ color: 'rgba(245,237,227,0.4)' }}>
+							|
+						</span>
+					)}
+				</div>
+				<div
+					style={{
+						fontSize: 72,
+						fontWeight: 900,
+						color: C.green,
+						fontFamily: 'sans-serif',
+						lineHeight: 1.15,
+						minHeight: 90,
+					}}>
+					{line2}
+					{frame >= 30 && (
+						<span style={{ color: 'rgba(74,222,128,0.4)' }}>|</span>
+					)}
+				</div>
+			</div>
+
+			{/* CTA pill */}
+			<div
+				style={{
+					opacity: ctaOp,
+					transform: `scale(${ctaScale * pulse})`,
+					borderRadius: 999,
+					padding: '28px 64px',
+					background: C.cream,
+					cursor: 'pointer',
+				}}>
+				<span
+					style={{
+						fontSize: 40,
+						fontWeight: 900,
+						color: C.choco,
+						fontFamily: 'sans-serif',
+					}}>
+					{cta} →
+				</span>
+			</div>
+
+			{/* AriClear brand */}
+			<div style={{ opacity: brandOp, textAlign: 'center' }}>
+				<div
+					style={{
+						fontSize: 26,
+						fontWeight: 800,
+						color: C.creamFaint,
 						fontFamily: 'sans-serif',
 						letterSpacing: '0.25em',
 						textTransform: 'uppercase',
+						marginBottom: 8,
 					}}>
 					Powered by AriClear
-				</span>
+				</div>
+				<div
+					style={{
+						fontSize: 24,
+						color: 'rgba(245,237,227,0.3)',
+						fontFamily: 'sans-serif',
+					}}>
+					ariclear.com
+				</div>
 			</div>
 		</AbsoluteFill>
 	);
@@ -808,64 +1012,54 @@ function Scene3Headline({
 
 export const ScanRecapComposition = (props: ScanRecapProps) => {
 	const frame = useCurrentFrame();
-	const FRAMES_PER_SCENE = 90;
 	const frameInScene = frame % FRAMES_PER_SCENE;
-	const sceneIndex = Math.min(Math.floor(frame / FRAMES_PER_SCENE), 3);
-	const theme = THEMES[props.style];
+	const sceneIndex = Math.min(
+		Math.floor(frame / FRAMES_PER_SCENE),
+		TOTAL_SCENES - 1,
+	);
 
 	return (
-		<AbsoluteFill
-			style={{ background: theme.bg, fontFamily: 'sans-serif' }}>
+		<AbsoluteFill style={{ background: C.bg, fontFamily: 'sans-serif' }}>
 			{props.voiceoverUrl && <Audio src={props.voiceoverUrl} />}
 
+			<ProgressBars scene={sceneIndex} frameInScene={frameInScene} />
+
+			{/* Scene 0 — Arrival */}
 			<Sequence from={0} durationInFrames={FRAMES_PER_SCENE}>
-				<SceneBg imageUrl={props.sceneImages[0]} theme={theme} />
-				<ProgressBars
-					currentScene={0}
-					frameInScene={frameInScene}
-					framesPerScene={FRAMES_PER_SCENE}
-				/>
-				<Scene0Scores props={props} frame={frameInScene} />
-				<Watermark />
+				<Scene0Arrival props={props} frame={frameInScene} />
+				<Watermark opacity={0.2} />
 			</Sequence>
 
+			{/* Scene 1 — Confusion */}
 			<Sequence
 				from={FRAMES_PER_SCENE}
 				durationInFrames={FRAMES_PER_SCENE}>
-				<SceneBg imageUrl={props.sceneImages[1]} theme={theme} />
-				<ProgressBars
-					currentScene={1}
-					frameInScene={frameInScene}
-					framesPerScene={FRAMES_PER_SCENE}
-				/>
-				<Scene1Impression props={props} frame={frameInScene} />
-				<Watermark />
+				<Scene1Confusion props={props} frame={frameInScene} />
+				<Watermark opacity={0.15} />
 			</Sequence>
 
+			{/* Scene 2 — Problem */}
 			<Sequence
 				from={FRAMES_PER_SCENE * 2}
 				durationInFrames={FRAMES_PER_SCENE}>
-				<SceneBg imageUrl={props.sceneImages[2]} theme={theme} />
-				<ProgressBars
-					currentScene={2}
-					frameInScene={frameInScene}
-					framesPerScene={FRAMES_PER_SCENE}
-				/>
-				<Scene2ProblemSolution props={props} frame={frameInScene} />
-				<Watermark />
+				<Scene2Problem props={props} frame={frameInScene} />
+				<Watermark opacity={0.15} />
 			</Sequence>
 
+			{/* Scene 3 — Clarity */}
 			<Sequence
 				from={FRAMES_PER_SCENE * 3}
 				durationInFrames={FRAMES_PER_SCENE}>
-				<SceneBg imageUrl={props.sceneImages[3]} theme={theme} />
-				<ProgressBars
-					currentScene={3}
-					frameInScene={frameInScene}
-					framesPerScene={FRAMES_PER_SCENE}
-				/>
-				<Scene3Headline props={props} frame={frameInScene} />
-				<Watermark />
+				<Scene3Clarity props={props} frame={frameInScene} />
+				<Watermark opacity={0.2} />
+			</Sequence>
+
+			{/* Scene 4 — CTA */}
+			<Sequence
+				from={FRAMES_PER_SCENE * 4}
+				durationInFrames={FRAMES_PER_SCENE}>
+				<Scene4CTA props={props} frame={frameInScene} />
+				<Watermark opacity={0.4} />
 			</Sequence>
 		</AbsoluteFill>
 	);

@@ -1,6 +1,6 @@
 // lib/video/generateScript.ts
-// Uses Gemini to generate voiceover narration for each of the 4 video scenes.
-// Returns structured JSON with narration text + image prompts per scene.
+// Generates 5-scene voiceover narration for the emotional story video.
+// Scene structure: Arrival → Confusion → Problem → Clarity → CTA
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -9,10 +9,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export type VideoScript = {
 	scenes: {
 		id: number;
-		narration: string; // spoken voiceover text (max ~15 words per scene)
-		imagePrompt: string; // Replicate image generation prompt
+		narration: string;
+		imagePrompt: string; // kept for API compat, not used in new composition
 	}[];
-	totalDuration: number; // always 12
+	totalDuration: number;
 };
 
 export type ScanData = {
@@ -30,21 +30,36 @@ export type ScanData = {
 	style: 'bold' | 'clean' | 'warm' | 'urgent';
 };
 
-// ─── Style tone map ───────────────────────────────────────────────────────────
+// ─── Retry helper ─────────────────────────────────────────────────────────────
 
-const STYLE_TONE: Record<ScanData['style'], string> = {
-	bold: 'punchy, direct, confident — short sentences, strong verbs',
-	clean: 'calm, professional, elegant — clear and precise',
-	warm: 'friendly, approachable, human — conversational and encouraging',
-	urgent: 'urgent, problem-focused — highlights pain then relief',
-};
-
-const STYLE_IMAGE_MOOD: Record<ScanData['style'], string> = {
-	bold: 'high contrast, dramatic lighting, dark background, bold typography aesthetic, cinematic',
-	clean: 'minimal, clean white space, soft natural light, elegant, modern design aesthetic',
-	warm: 'warm tones, coffee browns and creams, cozy atmosphere, soft bokeh, inviting',
-	urgent: 'dramatic red accents, dark moody background, tension and resolution visual narrative',
-};
+async function withRetry<T>(
+	fn: () => Promise<T>,
+	maxAttempts = 3,
+	delayMs = 2000,
+): Promise<T> {
+	let lastError: unknown;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			return await fn();
+		} catch (err: unknown) {
+			lastError = err;
+			const isRetryable =
+				err instanceof Error &&
+				(err.message.includes('503') ||
+					err.message.includes('overloaded') ||
+					err.message.includes('high demand'));
+			if (isRetryable && attempt < maxAttempts) {
+				console.log(
+					`Gemini attempt ${attempt} failed — retrying in ${delayMs * attempt}ms`,
+				);
+				await new Promise((r) => setTimeout(r, delayMs * attempt));
+				continue;
+			}
+			throw err;
+		}
+	}
+	throw lastError;
+}
 
 // ─── Main function ────────────────────────────────────────────────────────────
 
@@ -63,18 +78,14 @@ export async function generateVideoScript(
 		},
 	});
 
-	const tone = STYLE_TONE[scan.style];
-	const imageMood = STYLE_IMAGE_MOOD[scan.style];
-
 	const prompt = `
-You are a video script writer for AriClear, a website clarity analysis tool.
-Generate a 4-scene video script for a 12-second social media video about a website scan result.
+You are writing voiceover narration for a 15-second emotional story video about a website clarity scan.
+The video has 5 scenes, 3 seconds each. Write short, punchy narration for each scene.
 
 SCAN DATA:
 - Domain: ${scan.domain}
 - Clarity Score: ${scan.clarityScore}/100
 - AI-SEO Score: ${scan.aiScore}/100
-- Overall Score: ${scan.overallScore}/100
 - First Impression: "${scan.firstImpression}"
 - Target Audience: "${scan.audience}"
 - Top Issue: "${scan.topIssue}"
@@ -82,56 +93,41 @@ SCAN DATA:
 - Suggested Headline: "${scan.suggestedHeadline}"
 - CTA: "${scan.suggestedCta}"
 
-STYLE: ${scan.style} — tone is ${tone}
+SCENES:
+- Scene 1 (ARRIVAL, 0-3s): Visitor just landed. Curious, hopeful. MAX 8 words.
+- Scene 2 (CONFUSION, 3-6s): They read the headline. They're confused. MAX 8 words.
+- Scene 3 (PROBLEM, 6-9s): They leave. Top issue revealed. MAX 8 words.
+- Scene 4 (CLARITY, 9-12s): New headline. They get it instantly. MAX 8 words.
+- Scene 5 (CTA, 12-15s): The transformation. Call to action. MAX 8 words.
 
 RULES:
-- Each scene is exactly 3 seconds
-- Narration must be MAX 12 words per scene (spoken at natural pace)
-- Image prompts must be photorealistic, no text in images, no logos
-- Image mood: ${imageMood}
-- Scene 1 is about the scores
-- Scene 2 is about the first impression and audience
-- Scene 3 is about the top issue and fix
-- Scene 4 is about the new headline and CTA
+- MAX 8 words per scene narration — this is critical for timing
+- Conversational, emotional tone — not salesy
+- Use the real data — domain name, score, issue, headline
+- imagePrompt: describe a simple abstract background (dark, cinematic, no text)
 
-Respond ONLY with this exact JSON structure, no markdown, no explanation:
+Respond ONLY with this JSON, no markdown:
 {
   "scenes": [
-    {
-      "id": 1,
-      "narration": "max 12 word voiceover text for scores scene",
-      "imagePrompt": "detailed photorealistic image generation prompt for scores scene background"
-    },
-    {
-      "id": 2,
-      "narration": "max 12 word voiceover text for first impression scene",
-      "imagePrompt": "detailed photorealistic image generation prompt for first impression scene background"
-    },
-    {
-      "id": 3,
-      "narration": "max 12 word voiceover text for problem and solution scene",
-      "imagePrompt": "detailed photorealistic image generation prompt for problem solution scene background"
-    },
-    {
-      "id": 4,
-      "narration": "max 12 word voiceover text for headline and CTA scene",
-      "imagePrompt": "detailed photorealistic image generation prompt for headline CTA scene background"
-    }
+    { "id": 1, "narration": "8 words max for arrival scene", "imagePrompt": "abstract dark background description" },
+    { "id": 2, "narration": "8 words max for confusion scene", "imagePrompt": "abstract dark background description" },
+    { "id": 3, "narration": "8 words max for problem scene", "imagePrompt": "abstract dark background description" },
+    { "id": 4, "narration": "8 words max for clarity scene", "imagePrompt": "abstract dark background description" },
+    { "id": 5, "narration": "8 words max for CTA scene", "imagePrompt": "abstract dark background description" }
   ],
-  "totalDuration": 12
+  "totalDuration": 15
 }
 `;
 
-	const result = await model.generateContent(prompt);
+	const result = await withRetry(() => model.generateContent(prompt));
 	const text = result.response.text();
-
-	// Strip any accidental markdown fences
 	const clean = text.replace(/```json|```/g, '').trim();
 	const parsed = JSON.parse(clean) as VideoScript;
 
-	// Validate structure
-	if (!parsed.scenes || parsed.scenes.length !== 4) {
-		throw new Error('Gemini returned invalid script structure');
+	if (!parsed.scenes || parsed.scenes.length !== 5) {
+		throw new Error(
+			'Gemini returned invalid script structure — expected 5 scenes',
+		);
 	}
 
 	return parsed;
