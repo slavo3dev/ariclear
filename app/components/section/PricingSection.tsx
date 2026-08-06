@@ -10,9 +10,8 @@ const plans = [
 		name: 'Starter',
 		badge: 'Free forever',
 		price: 'Free',
-		yearlyPrice: null,
+		priceCaption: null,
 		monthlyEquiv: null,
-		monthlyPrice: null,
 		description:
 			'Run your first clarity scan and see what visitors actually understand.',
 		features: [
@@ -59,9 +58,9 @@ const plans = [
 		id: 'pro',
 		name: 'Pro',
 		badge: 'Most popular',
-		yearlyPrice: '$149',
-		monthlyEquiv: '$12.50',
-		monthlyPrice: '$17',
+		price: '$59',
+		priceCaption: 'one payment every 6 months',
+		monthlyEquiv: '$9.83',
 		description:
 			'For founders and teams actively improving their messaging.',
 		features: [
@@ -105,71 +104,15 @@ const plans = [
 			},
 		],
 		cta: 'Get Pro',
-		ctaSub: 'Best for active founders & small businesses',
+		ctaSub: 'One simple payment covers 6 months · no auto-switching plans',
 		tier: 'pro',
 	},
-	{
-		id: 'expert',
-		name: 'Expert',
-		badge: 'For agencies & teams',
-		yearlyPrice: '$499',
-		monthlyEquiv: '$41',
-		monthlyPrice: '$55',
-		description:
-			'More sites, more sessions — for agencies and serious teams.',
-		features: [
-			{ text: '6 websites', included: true, highlight: false },
-			{
-				text: 'Unlimited clarity scans',
-				included: true,
-				highlight: false,
-			},
-			{
-				text: 'Full clarity score & breakdown',
-				included: true,
-				highlight: false,
-			},
-			{
-				text: 'Headline & value proposition feedback',
-				included: true,
-				highlight: false,
-			},
-			{ text: 'CTA clarity analysis', included: true, highlight: false },
-			{
-				text: 'Full PDF reports + save & archive',
-				included: true,
-				highlight: false,
-			},
-			{
-				text: 'Scan history & progress tracking',
-				included: true,
-				highlight: false,
-			},
-			{ text: 'Brand Awareness tool', included: true, highlight: false },
-			{
-				text: 'Website uptime monitoring',
-				included: true,
-				highlight: false,
-			},
-			{
-				text: '6× 30-min expert sessions / month',
-				included: true,
-				highlight: true,
-			},
-		],
-		cta: 'Get Expert',
-		ctaSub: 'Best for agencies, redesigns & client work',
-		tier: 'expert',
-	},
 ];
-
-type BillingCycle = 'yearly' | 'monthly';
 
 export function PricingSection() {
 	const router = useRouter();
 	const { user, loading } = useAuth();
 
-	const [billing, setBilling] = useState<BillingCycle>('yearly');
 	const [showPreorderModal, setShowPreorderModal] = useState(false);
 	const [showAuthModal, setShowAuthModal] = useState(false);
 	const [selectedTier, setSelectedTier] = useState<string | null>(null);
@@ -206,61 +149,14 @@ export function PricingSection() {
 					</p>
 				</div>
 
-				{/* Billing toggle */}
-				<div className='flex flex-col items-center gap-3 mb-12'>
-					<div className='relative inline-flex items-center rounded-full bg-choco-100 p-1'>
-						{/* Sliding highlight — always exactly half the pill width */}
-						<span
-							aria-hidden
-							className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-choco-900 transition-transform duration-300 ease-in-out ${
-								billing === 'monthly'
-									? 'translate-x-0 left-1'
-									: 'translate-x-full left-1'
-							}`}
-						/>
-						<button
-							onClick={() => setBilling('monthly')}
-							className={`relative z-10 w-28 py-2 rounded-full text-sm font-semibold text-center transition-colors duration-200 ${
-								billing === 'monthly'
-									? 'text-cream-50'
-									: 'text-choco-600 hover:text-choco-900'
-							}`}>
-							Monthly
-						</button>
-						<button
-							onClick={() => setBilling('yearly')}
-							className={`relative z-10 w-28 py-2 rounded-full text-sm font-semibold text-center transition-colors duration-200 ${
-								billing === 'yearly'
-									? 'text-cream-50'
-									: 'text-choco-600 hover:text-choco-900'
-							}`}>
-							Yearly
-						</button>
-					</div>
-					{/* Save badge sits below, always visible */}
-					<span
-						className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full transition-all duration-200 ${
-							billing === 'yearly'
-								? 'bg-amber-400 text-choco-900'
-								: 'bg-choco-100 text-choco-400'
-						}`}>
-						{billing === 'yearly'
-							? '✓ Saving ~15% with yearly'
-							: 'Switch to yearly and save ~15%'}
-					</span>
-				</div>
-
 				{/* Cards */}
-				<div className='grid gap-6 lg:grid-cols-3'>
+				<div className='mx-auto grid max-w-4xl gap-6 md:grid-cols-2'>
 					{plans.map((plan) => {
 						const isPopular = plan.id === 'pro';
 						const isFree = plan.tier === 'free';
 
-						// Always show yearly price — monthly equiv shown in brackets
-						const displayPrice = isFree
-							? 'Free'
-							: plan.yearlyPrice!;
-						const priceCaption = isFree ? null : `per year`;
+						const displayPrice = plan.price;
+						const priceCaption = plan.priceCaption;
 
 						return (
 							<div

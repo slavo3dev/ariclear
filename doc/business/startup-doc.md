@@ -163,6 +163,16 @@ The **open space** is the lower-right-upper quadrant: *SMB-priced, with real mea
 
 `Description.md` (April 2026) says $99/yr and $399–699/yr — inconsistent with the live page.
 
+### 7.1b Pricing decision (implemented on the landing page)
+Monthly/yearly toggle removed — it confused buyers. Two plans only:
+
+| Plan | Price | Billing |
+|---|---|---|
+| Free | $0 | — |
+| Pro | **$59 per 6 months** (~$9.83/mo) | One payment every 6 months |
+
+Expert plan removed for now (agencies get a "contact us" path later). Still open: Pro currently lists "3× 30-min expert sessions / month", which at ~$9.83/mo is loss-making founder time (see 7.2). Recommend cutting it to one session per term or making it a paid add-on. Billing is still a lead form until Stripe is wired up.
+
 ### 7.2 Observations
 - **Annual-first pricing with a monthly toggle is good for cash, bad for conversion** of a product nobody knows yet. A $149 up-front for an unproven scanner is a high-friction ask; consider a monthly default.
 - **The price metric is wrong.** You charge by *websites*, but the value for founders is "# of fixes verified" and for agencies is "# of client reports." Agencies need *clients/reports/white-label*, which the plan table doesn't sell at all.
