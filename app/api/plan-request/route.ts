@@ -28,9 +28,9 @@ export async function POST(req: NextRequest) {
 			);
 		}
 
-		if (!['pro', 'expert'].includes(plan)) {
+		if (!['starter', 'pro'].includes(plan)) {
 			return NextResponse.json(
-				{ error: 'Invalid plan. Must be pro or expert.' },
+				{ error: 'Invalid plan. Must be starter or pro.' },
 				{ status: 400 },
 			);
 		}

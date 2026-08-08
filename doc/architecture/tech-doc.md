@@ -189,7 +189,7 @@ Recommended: deterministic features (title/meta/H1 presence, JSON-LD types found
 | Env `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL` | `SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL/_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_MAIL_URL`, `SUPABASE_MAIL_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `REPLICATE_API_TOKEN`, Google TTS creds, `CLOUDINARY_*`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_GA_ID` |
 | Tiers: Free / Starter ~$99 / Agency $399–699 | Pricing page: Starter (free) / **Pro $149 (3 sites)** / **Expert $499 (6 sites)**, plus monthly $17 / $55 |
 | Free tier = "limited scans/month" | Pricing page: "unlimited clarity scans"; server limits **websites**, not scans |
-| `params` is synchronous in Next 16 | Next 16 made `params` a Promise again; check `app/api/scans/[id]/route.ts` and `history/[id]` — **verify against Next 16 docs before relying on the README rule** |
+| `params` is synchronous in Next 16 | **Wrong.** Next 16 route/page `params` are Promises; the `[id]` routes and pages correctly await or `use()` them (see feature doc 03). README rule should be removed. |
 | `pnpm type-check` | script does not exist |
 | `.github/copilot-instructions.md` mentions `app/lib/supabaseServer.ts`, `mailcollection` | files moved to `lib/supabase/...` |
 
@@ -218,6 +218,10 @@ The README should be rewritten from this document.
 14. Public API + CMS/Shopify/Webflow/WordPress plugin; white-label PDF.
 15. Split `ScanResultsEnhanced`, `ask-ari/page`, `ScanRecapComposition`, `scan/page` (700–1,200 lines each).
 
+## 11b. Per-feature docs
+
+Detailed docs for each feature are in [features/](features/README.md). Findings that change this document: nothing is tier-gated server-side; the recap video pipeline fails as written (5 scenes vs 4 image prompts) ; Ask Ari imports a client that is not exported; trend tracking and monitoring are not implemented as described.
+
 ## 12. Scope & confidence
 
-Read in full: `analyze`, `demo-scan`, `scans`, `scans/limit`, `subscription`, `plan-request`, `check-site`, `video/request`, `video/render`, `preorder`, `admin/status`, `ask-ari/question`, `generateScript`, `lib/supabase/*`, `layout.tsx`, `PricingSection`, README, Description. Read partially: `brand-awareness/analyze` (first half), `generateImages`, `generateVoiceover`, `website-monitor`. **Not reviewed:** `scans/[id]`, `scans/stats`, other auth routes, remaining ask-ari routes, all UI pages beyond headers, Remotion composition, Supabase schema/RLS (not in repo — policy-level claims such as "RLS enabled" in the README are unverified).
+Read in full: `analyze`, `demo-scan`, `scans`, `scans/limit`, `subscription`, `plan-request`, `check-site`, `video/request`, `video/render`, `preorder`, `admin/status`, `ask-ari/question`, `generateScript`, `lib/supabase/*`, `layout.tsx`, `PricingSection`, README, Description. Read partially: `brand-awareness/analyze` (first half), `generateImages`, `generateVoiceover`, `website-monitor`. **Reviewed afterwards by the per-feature docs in `features/`:** `scans/[id]`, `scans/stats`, auth routes, ask-ari routes, UI pages, Remotion composition. **Still unverifiable:** Supabase schema/RLS (not in repo — policy-level claims such as "RLS enabled" in the README are unverified).

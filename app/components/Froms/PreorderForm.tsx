@@ -10,22 +10,22 @@ const CALENDLY_URL = 'https://calendly.com/slavo3/30min';
 
 const TIER_CONFIG = {
 	pro: {
-		label: 'Pro Plan',
+		label: 'Centurion Plan',
 		websites: '3',
 		maxWebsites: 3,
-		badge: 'Pro · 3 Websites · 3 Expert Sessions/mo',
-		headline: 'Get started with Pro',
+		badge: 'Centurion · 3 Websites · 1 Expert Session/mo',
+		headline: 'Become a Centurion',
 		description:
-			"3 websites, unlimited scans, Brand Awareness tool, and 3 live expert sessions per month. We'll reach out within 24 hours.",
+			"3 websites, unlimited scans, Brand Awareness tool, and 1 live expert session per month. We'll reach out within 24 hours.",
 	},
-	expert: {
-		label: 'Expert Plan',
-		websites: '6',
-		maxWebsites: 6,
-		badge: 'Expert · 6 Websites · 6 Expert Sessions/mo',
-		headline: 'Get started with Expert',
+	starter: {
+		label: 'Gladiator Plan',
+		websites: '1',
+		maxWebsites: 1,
+		badge: 'Gladiator · 1 Website',
+		headline: 'Become a Gladiator',
 		description:
-			'6 websites, unlimited scans, Brand Awareness tool, and 6 live expert sessions per month. Ideal for agencies and client work.',
+			"1 website, unlimited scans, full reports and scan history. We'll reach out within 24 hours.",
 	},
 } as const;
 

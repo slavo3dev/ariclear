@@ -692,7 +692,7 @@ export function VideoCreatorPanel({ scan }: { scan: Scan }) {
 
 					<p className='text-center text-[10px] text-choco-400'>
 						Script copy is free on all plans · Rendered .mp4
-						delivery requires Pro or Expert
+						delivery requires Centurion
 					</p>
 				</div>
 			)}

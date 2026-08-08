@@ -1,19 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button, PreorderForm, useAuth, AuthModal } from '@ariclear/components';
+import { Button, PreorderForm } from '@ariclear/components';
 
 const plans = [
 	{
-		id: 'free',
-		name: 'Starter',
-		badge: 'Free forever',
-		price: 'Free',
-		priceCaption: null,
-		monthlyEquiv: null,
+		id: 'starter',
+		name: 'Gladiator',
+		badge: 'Get started',
+		price: '$39',
+		priceCaption: 'one payment every 6 months',
+		monthlyEquiv: '$6.50',
 		description:
-			'Run your first clarity scan and see what visitors actually understand.',
+			'Know exactly what visitors and AI understand about your website, and how to fix it.',
 		features: [
 			{ text: '1 website', included: true, highlight: false },
 			{
@@ -22,7 +21,7 @@ const plans = [
 				highlight: false,
 			},
 			{
-				text: 'Clarity score & breakdown',
+				text: 'Full clarity score & breakdown',
 				included: true,
 				highlight: false,
 			},
@@ -33,13 +32,13 @@ const plans = [
 			},
 			{ text: 'CTA clarity analysis', included: true, highlight: false },
 			{
-				text: 'Basic PDF clarity report',
+				text: 'Full PDF reports + save & archive',
 				included: true,
 				highlight: false,
 			},
 			{
-				text: 'Scan history & archive',
-				included: false,
+				text: 'Scan history & progress tracking',
+				included: true,
 				highlight: false,
 			},
 			{ text: 'Brand Awareness tool', included: false, highlight: false },
@@ -50,17 +49,17 @@ const plans = [
 			},
 			{ text: 'Expert sessions', included: false, highlight: false },
 		],
-		cta: 'Start for free',
-		ctaSub: 'No credit card required',
-		tier: 'free',
+		cta: 'Become a Gladiator',
+		ctaSub: 'One payment covers 6 months',
+		tier: 'starter',
 	},
 	{
 		id: 'pro',
-		name: 'Pro',
+		name: 'Centurion',
 		badge: 'Most popular',
-		price: '$59',
+		price: '$99',
 		priceCaption: 'one payment every 6 months',
-		monthlyEquiv: '$9.83',
+		monthlyEquiv: '$16.50',
 		description:
 			'For founders and teams actively improving their messaging.',
 		features: [
@@ -98,37 +97,24 @@ const plans = [
 				highlight: false,
 			},
 			{
-				text: '3× 30-min expert sessions / month',
+				text: '1× 30-min expert session / month',
 				included: true,
 				highlight: true,
 			},
 		],
-		cta: 'Get Pro',
-		ctaSub: 'One simple payment covers 6 months · no auto-switching plans',
+		cta: 'Become a Centurion',
+		ctaSub: 'One payment covers 6 months',
 		tier: 'pro',
 	},
 ];
 
 export function PricingSection() {
-	const router = useRouter();
-	const { user, loading } = useAuth();
-
 	const [showPreorderModal, setShowPreorderModal] = useState(false);
-	const [showAuthModal, setShowAuthModal] = useState(false);
 	const [selectedTier, setSelectedTier] = useState<string | null>(null);
 
-	const handleSelect = (plan: (typeof plans)[0]) => {
-		if (plan.tier === 'free') {
-			if (loading) return;
-			if (user) {
-				router.push('/dashboard');
-			} else {
-				setShowAuthModal(true);
-			}
-		} else {
-			setSelectedTier(plan.tier);
-			setShowPreorderModal(true);
-		}
+	const handleSelect = (plan: (typeof plans)[number]) => {
+		setSelectedTier(plan.tier);
+		setShowPreorderModal(true);
 	};
 
 	return (
@@ -143,9 +129,9 @@ export function PricingSection() {
 						Simple pricing. Clear value.
 					</h2>
 					<p className='text-lg text-choco-600 max-w-xl mx-auto'>
-						Start free and see what your website is actually saying
-						to humans and AI. Upgrade when you are ready to fix it
-						seriously.
+						Try the free demo scan above to see what your website is
+						actually saying to humans and AI. Pick a plan when you
+						are ready to fix it.
 					</p>
 				</div>
 
@@ -153,7 +139,7 @@ export function PricingSection() {
 				<div className='mx-auto grid max-w-4xl gap-6 md:grid-cols-2'>
 					{plans.map((plan) => {
 						const isPopular = plan.id === 'pro';
-						const isFree = plan.tier === 'free';
+						const isStarter = plan.tier === 'starter';
 
 						const displayPrice = plan.price;
 						const priceCaption = plan.priceCaption;
@@ -162,7 +148,7 @@ export function PricingSection() {
 							<div
 								key={plan.id}
 								className={`relative flex flex-col rounded-2xl p-8 transition-all duration-300 ${
-									isFree
+									isStarter
 										? 'bg-cream-50 border-2 border-choco-100'
 										: isPopular
 											? 'bg-choco-900 border-2 border-choco-900 shadow-2xl'
@@ -172,7 +158,7 @@ export function PricingSection() {
 								<div className='mb-6'>
 									<span
 										className={`inline-block rounded-full px-3 py-1 text-xs font-semibold tracking-wide ${
-											isFree
+											isStarter
 												? 'bg-choco-100 text-choco-700'
 												: isPopular
 													? 'bg-amber-400 text-choco-900'
@@ -211,7 +197,7 @@ export function PricingSection() {
 											}`}>
 											{displayPrice}
 										</span>
-										{!isFree && (
+										{plan.monthlyEquiv && (
 											<span
 												className={`text-base font-medium ${
 													isPopular
@@ -277,9 +263,8 @@ export function PricingSection() {
 									<Button
 										type='button'
 										onClick={() => handleSelect(plan)}
-										disabled={loading}
 										className={`w-full justify-center font-semibold py-3 rounded-xl transition-all duration-200 ${
-											isFree
+											isStarter
 												? 'bg-choco-900 text-cream-50 hover:bg-choco-800'
 												: isPopular
 													? 'bg-amber-400 text-choco-900 hover:bg-amber-300 shadow-lg hover:shadow-xl'
@@ -326,13 +311,6 @@ export function PricingSection() {
 					— we reply fast.
 				</p>
 			</div>
-
-			{/* Auth Modal */}
-			<AuthModal
-				open={showAuthModal}
-				onClose={() => setShowAuthModal(false)}
-				initialMode='login'
-			/>
 
 			{/* Preorder Modal */}
 			{showPreorderModal && (
