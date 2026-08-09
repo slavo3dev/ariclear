@@ -5,7 +5,14 @@ export async function GET(req: Request) {
 	const url = new URL(req.url);
 
 	const code = url.searchParams.get('code');
-	const next = url.searchParams.get('next') ?? '/';
+	const rawNext = url.searchParams.get('next') ?? '/';
+	// Only allow same-site relative paths (blocks //evil.com and absolute URLs)
+	const next =
+		rawNext.startsWith('/') &&
+		!rawNext.startsWith('//') &&
+		!rawNext.startsWith('/\\')
+			? rawNext
+			: '/';
 
 	if (!code) {
 		return NextResponse.redirect(

@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth, Navbar, SiteFooter } from '@ariclear/components';
-import { supabaseAriClear } from '@/lib/video';
+import { supabaseAriClear } from '@/lib/supabase/auth/browser';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ async function toggleQuestionStatus(
 ): Promise<boolean> {
 	const newStatus = current === 'answered' ? 'waiting' : 'answered';
 	try {
-		const res = await fetch('/api/admin/ask-ari/status', {
+		const res = await fetch('/api/admin/status', {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({

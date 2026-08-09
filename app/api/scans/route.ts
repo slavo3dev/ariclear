@@ -48,6 +48,11 @@ export async function GET(request: NextRequest) {
 			query = query.order('created_at', { ascending: false });
 		}
 
+		const limitParam = Number(searchParams.get('limit'));
+		if (Number.isInteger(limitParam) && limitParam > 0) {
+			query = query.limit(Math.min(limitParam, 100));
+		}
+
 		const { data, error } = await query;
 
 		console.log('Scans found:', data?.length);
@@ -61,7 +66,14 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		return NextResponse.json({ scans: data || [] });
+		// Fields the dashboard list expects (derived; saved scans are always complete)
+		const scans = (data || []).map((s: any) => ({
+			...s,
+			status: 'completed',
+			issues_found: Array.isArray(s.issues) ? s.issues.length : 0,
+		}));
+
+		return NextResponse.json({ scans });
 	} catch (error) {
 		console.error('Server error:', error);
 		return NextResponse.json(

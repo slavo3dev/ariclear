@@ -12,7 +12,6 @@ import { promisify } from 'util';
 import { supabaseAriClearServer } from '@ariclear/lib/supabase/auth/server';
 import { generateVideoScript } from '@/lib/video/generateScript';
 import { generateVoiceover } from '@/lib/video/generateVoiceover';
-import { generateSceneImages } from '@/lib/video/generateImages';
 import { uploadToCloudinary } from '@/lib/video/uploadToCloudinary';
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -209,19 +208,14 @@ export async function POST(request: NextRequest) {
 			style: typedJob.style,
 		});
 
-		// ── 3: Replicate images ──
-		console.log('[pipeline] Step 3: Generating scene images...');
-		const replicateUrls = await generateSceneImages({
-			imagePrompts: script.scenes.map((s) => s.imagePrompt),
-			style: typedJob.style,
-			format: typedJob.format,
-		});
-
-		// ── 4: Cloudinary upload ──
-		console.log('[pipeline] Step 4: Uploading to Cloudinary...');
+		// ── 3: Cloudinary upload (voiceover only) ──
+		// Scene images are no longer generated: the Remotion composition does
+		// not use them, and Gemini returns 5 scenes while the image step
+		// required exactly 4 (which made every render fail).
+		console.log('[pipeline] Step 3: Uploading voiceover to Cloudinary...');
 		const { voiceoverUrl, sceneImageUrls } = await uploadToCloudinary(
 			audio,
-			replicateUrls,
+			[],
 			job_id,
 		);
 

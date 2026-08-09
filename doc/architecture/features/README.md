@@ -21,9 +21,10 @@ One doc per feature. Each follows the same template: purpose, user flow, files, 
 4. **Three paid-AI endpoints are open** (`analyze`, `demo-scan`, `brand-awareness/analyze`).
 5. **Features that look finished but aren't:** trend tracking (3), monitoring (5), recap video (8), Ask Ari admin toggle (7).
 
-## Bugs worth fixing first (small, concrete)
-- `app/ask-ari/page.tsx:7` — import `supabaseAriClear` from `@/lib/supabase/auth/browser`.
-- Admin status toggle — page calls `/api/admin/ask-ari/status`, which doesn't exist.
-- `lib/video/generateImages.ts:90` vs `generateScript.ts:127` — 4 vs 5 prompts.
-- `app/api/auth/confirm/route.ts` — validate the `next` redirect.
-- Dashboard — API returns no `status`/`issues_found` and ignores `?limit=`.
+## Bugs fixed (Oct 2026)
+- `app/ask-ari/page.tsx` — now imports `supabaseAriClear` from `@/lib/supabase/auth/browser`; admin toggle now calls the existing `/api/admin/status`.
+- `app/api/auth/confirm/route.ts` — `next` redirect restricted to same-site relative paths.
+- `app/api/video/render/route.ts` — removed the Replicate image step (the composition never used the images and the step failed on 5 scenes vs 4 prompts). Also removes the ~11s-per-image delay and the image spend. `lib/video/generateImages.ts` is now unused.
+- `app/api/scans/route.ts` GET — honours `?limit=` (max 100) and returns `status` and `issues_found` for the dashboard.
+
+Not fixed (out of scope for the bug pass): everything under "Cross-cutting findings".
