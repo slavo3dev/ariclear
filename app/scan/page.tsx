@@ -243,16 +243,16 @@ function ScanLimitBanner({
 }) {
 	const { tier, limit, trialExpired } = limitStatus;
 	const title = trialExpired
-		? 'Your trial has expired'
+		? 'Your trial has ended'
 		: 'Website limit reached';
 	const body = trialExpired
-		? 'Your 60-day trial has ended. Upgrade to Centurion to continue scanning and tracking your websites.'
+		? 'Your trial has ended. Choose a plan to continue scanning and tracking your websites.'
 		: tier === 'free'
-			? `You've used your ${limit} free website slot${limit !== 1 ? 's' : ''}. Request a 60-day trial or upgrade to Centurion to scan more sites.`
+			? `Your current access covers ${limit} website${limit !== 1 ? 's' : ''}. Choose Gladiator or Centurion to scan more sites.`
 			: `You've reached your plan limit of ${limit} website${limit !== 1 ? 's' : ''}. Contact us to expand your plan.`;
-	const upgradeLabel = tier === 'free' ? 'Upgrade to Centurion' : 'Upgrade plan';
+	const upgradeLabel = tier === 'free' ? 'Choose a plan' : 'Upgrade plan';
 	const mailSubject = trialExpired
-		? 'Renew my trial / upgrade'
+		? 'Choose a plan / upgrade'
 		: 'More website scans — upgrade request';
 	const mailBody = `Hi, I've reached my scan limit (tier: ${tier}, limit: ${limit}). I'd like to upgrade or get more scans.`;
 
@@ -280,8 +280,8 @@ function ScanLimitBanner({
 					</div>
 					{tier === 'free' && !trialExpired && (
 						<p className='mt-3 text-[11px] text-choco-500'>
-							Your trial includes 1 website. Upgrade to unlock
-							unlimited websites and full scan history.
+							Choose a plan to scan more websites and keep
+							full scan history.
 						</p>
 					)}
 				</div>

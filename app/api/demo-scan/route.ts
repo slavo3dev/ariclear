@@ -1,26 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { safeFetch, UnsafeUrlError } from '@/lib/security/safeFetch';
+import { clientIp, rateLimit } from '@/lib/security/rateLimit';
 
-// ─── Rate limiting (in-memory, per-IP) ───────────────────────────────────────
-// For production, replace with Upstash Redis or similar.
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 3; // max 3 demo scans
-const RATE_LIMIT_WINDOW_MS = 60_000; // per 60 seconds
+// ─── Rate limiting (best-effort, per instance — see lib/security/rateLimit) ──
 
 function checkRateLimit(ip: string): boolean {
-	const now = Date.now();
-	const entry = rateLimitMap.get(ip);
-
-	if (!entry || now > entry.resetAt) {
-		rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-		return true;
-	}
-
-	if (entry.count >= RATE_LIMIT_MAX) return false;
-
-	entry.count++;
-	return true;
+	return (
+		rateLimit(`demo:min:${ip}`, 3, 60_000).ok && // 3 per minute
+		rateLimit(`demo:day:${ip}`, 15, 24 * 60 * 60_000).ok // 15 per day
+	);
 }
 
 // ─── HTML extraction ──────────────────────────────────────────────────────────
@@ -74,10 +63,7 @@ Do NOT be generous. Real scores rarely exceed 65 without exceptional copy.`;
 
 export async function POST(req: NextRequest) {
 	// Rate limit by IP
-	const ip =
-		req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-		req.headers.get('x-real-ip') ??
-		'unknown';
+	const ip = clientIp(req);
 
 	if (!checkRateLimit(ip)) {
 		return NextResponse.json(
@@ -105,19 +91,15 @@ export async function POST(req: NextRequest) {
 	// Fetch page
 	let html: string;
 	try {
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 10_000);
-
-		const fetchRes = await fetch(url, {
-			signal: controller.signal,
+		const fetchRes = await safeFetch(url, {
+			timeoutMs: 10_000,
+			maxBytes: 1_000_000,
 			headers: {
 				'User-Agent':
 					'Mozilla/5.0 (compatible; AriClearBot/1.0; +https://ariclear.com)',
 				Accept: 'text/html',
 			},
 		});
-
-		clearTimeout(timeout);
 
 		if (!fetchRes.ok) {
 			return NextResponse.json(
@@ -126,8 +108,14 @@ export async function POST(req: NextRequest) {
 			);
 		}
 
-		html = await fetchRes.text();
-	} catch {
+		html = fetchRes.body;
+	} catch (e) {
+		if (e instanceof UnsafeUrlError) {
+			return NextResponse.json(
+				{ error: 'Invalid URL', errorCode: 'INVALID_URL' },
+				{ status: 400 },
+			);
+		}
 		return NextResponse.json(
 			{ error: 'Could not reach that URL', errorCode: 'FETCH_ERROR' },
 			{ status: 422 },

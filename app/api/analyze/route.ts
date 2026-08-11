@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
+import { supabaseAriClearServer } from "@/lib/supabase/auth/server";
+import { safeFetch, UnsafeUrlError } from "@/lib/security/safeFetch";
+import { rateLimit } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -68,6 +71,24 @@ function isReportShape(obj: any) {
 
 export async function POST(req: Request) {
   try {
+    // Auth: every scan costs an LLM call, so it requires a signed-in user.
+    const supabase = await supabaseAriClearServer();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const limit = rateLimit(`analyze:${user.id}`, 10, 60_000);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "Too many scans. Please wait a moment.", rateLimited: true },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } }
+      );
+    }
+
     const { url } = (await req.json()) as { url?: string };
 
     if (!url || !isValidHttpUrl(url)) {
@@ -80,22 +101,30 @@ export async function POST(req: Request) {
     console.log("🔍 Analyzing URL:", url);
 
     // Fetch the page
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "AriClearBot/0.1 (+https://ariclear.com)",
-        Accept: "text/html",
-      },
-      redirect: "follow",
-    });
-
-    if (!res.ok) {
+    let html: string;
+    try {
+      const res = await safeFetch(url, {
+        headers: {
+          "User-Agent": "AriClearBot/0.1 (+https://ariclear.com)",
+          Accept: "text/html",
+        },
+      });
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: `Failed to fetch URL (status ${res.status}).` },
+          { status: 400 }
+        );
+      }
+      html = res.body;
+    } catch (e) {
+      if (e instanceof UnsafeUrlError) {
+        return NextResponse.json({ error: e.message }, { status: 400 });
+      }
       return NextResponse.json(
-        { error: `Failed to fetch URL (status ${res.status}).` },
+        { error: "Could not reach that URL." },
         { status: 400 }
       );
     }
-
-    const html = await res.text();
     const extracted = extractTextFromHtml(html);
 
     console.log("📄 Extracted content, calling OpenAI...");

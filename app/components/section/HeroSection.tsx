@@ -101,7 +101,7 @@ export function HeroSection() {
 							<label
 								htmlFor='email'
 								className='block text-xs font-medium uppercase tracking-[0.12em] text-choco-600'>
-								Request a 60-day trial
+								Get early access
 							</label>
 
 							<div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
@@ -131,8 +131,8 @@ export function HeroSection() {
 							/>
 
 							<p className='text-[11px] text-choco-500'>
-								No credit card. You&apos;ll be first when your
-								alpha invite is ready.
+								Join the early-access list. We&apos;ll email you
+								when your spot is ready.
 							</p>
 
 							{submitted && (

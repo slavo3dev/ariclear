@@ -190,6 +190,7 @@ export default function WebsiteMonitorPage() {
   const [results, setResults] = useState<SiteResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const runChecks = useCallback(async () => {
     const rawUrls = input.split(",").map((s) => s.trim()).filter(Boolean);
@@ -207,12 +208,25 @@ export default function WebsiteMonitorPage() {
     setResults(initial);
     setLoading(true);
     setDone(false);
+    setNotice(null);
 
     const updated = [...initial];
     await Promise.all(
       urls.map(async (url, i) => {
         try {
           const res = await fetch(`/api/check-site?url=${encodeURIComponent(url)}`);
+          if (!res.ok) {
+            setNotice(
+              res.status === 401
+                ? "Please sign in to check your sites."
+                : res.status === 429
+                  ? "Too many checks. Please wait a moment and try again."
+                  : "Some URLs could not be checked (invalid or not allowed)."
+            );
+            updated[i] = { ...updated[i], status: "UNKNOWN", checkedAt: new Date().toISOString() };
+            setResults([...updated]);
+            return;
+          }
           const data: { statusCode: number | null; responseTime: number | null } = await res.json();
           updated[i] = {
             url,
@@ -333,6 +347,12 @@ export default function WebsiteMonitorPage() {
               </div>
               <div className="text-xs text-choco-500 mt-0.5 uppercase tracking-wide">Avg Response</div>
             </div>
+          </div>
+        )}
+
+        {notice && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {notice}
           </div>
         )}
 

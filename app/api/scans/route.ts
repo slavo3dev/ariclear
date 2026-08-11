@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
 						{
 							error: 'Website limit reached',
 							errorCode: 'SCAN_LIMIT_REACHED',
-							message: `You've reached your limit of 1 free website. Upgrade to Pro to track more sites.`,
+							message: `You've reached your limit of 1 website. Choose a plan to track more sites.`,
 							limit: 1,
 							current: currentCount,
 							tier: 'free',
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
 								error: 'Trial expired',
 								errorCode: 'TRIAL_EXPIRED',
 								message:
-									'Your 60-day trial has expired. Upgrade to Pro to continue tracking websites.',
+									'Your trial has ended. Choose a plan to continue tracking websites.',
 								limit: subscription.websites_limit,
 								tier: 'trial_expired',
 								requiresUpgrade: true,
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
 							errorCode: 'SCAN_LIMIT_REACHED',
 							message: `You've reached your limit of ${subscription.websites_limit} website${subscription.websites_limit > 1 ? 's' : ''}. ${
 								subscription.tier === 'free'
-									? 'Upgrade to Pro to track more sites.'
+									? 'Choose Gladiator or Centurion to track more sites.'
 									: 'Contact us to expand your plan.'
 							}`,
 							limit: subscription.websites_limit,

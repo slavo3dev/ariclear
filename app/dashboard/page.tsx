@@ -5,6 +5,7 @@ import { useAuth } from "@ariclear/components";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Navbar, SiteFooter } from "@ariclear/components";
+import { getTierBadgeColor, getTierLabel } from "@/lib/plans";
 
 type SubscriptionInfo = {
   tier: string;
@@ -67,31 +68,6 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [user]);
 
-  const getTierBadgeColor = (tier?: string) => {
-    if (!tier) return "bg-gray-100 text-gray-700 ring-gray-300";
-
-    switch (tier.toLowerCase()) {
-      case "free":
-        return "bg-gray-100 text-gray-700 ring-gray-300";
-      case "trial":
-        return "bg-blue-100 text-blue-700 ring-blue-300";
-      case "starter":
-        return "bg-green-100 text-green-700 ring-green-300";
-      case "pro":
-        return "bg-purple-100 text-purple-700 ring-purple-300";
-      case "business":
-        return "bg-orange-100 text-orange-700 ring-orange-300";
-      case "agency":
-        return "bg-red-100 text-red-700 ring-red-300";
-      default:
-        return "bg-gray-100 text-gray-700 ring-gray-300";
-    }
-  };
-
-  const getTierLabel = (tier?: string) => {
-    if (!tier) return "Free";
-    return tier.charAt(0).toUpperCase() + tier.slice(1);
-  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

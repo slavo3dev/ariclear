@@ -267,6 +267,10 @@ export default function BrandAwarenessPage() {
 
       const result = await response.json();
 
+      if (response.status === 401) {
+        throw new Error("Please sign in to run a brand analysis.");
+      }
+
       if (!response.ok) {
         throw new Error(result.error || "Analysis failed");
       }

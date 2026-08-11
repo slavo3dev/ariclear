@@ -29,7 +29,7 @@ export function SiteFooter() {
 
         {/* RIGHT SIDE */}
         <p className="text-[11px] text-choco-700">
-          Ari helps humans explain things clearly. Early access is invite-only.
+          Ari helps humans and AI understand your website.
         </p>
       </div>
     </footer>

@@ -28,3 +28,11 @@ One doc per feature. Each follows the same template: purpose, user flow, files, 
 - `app/api/scans/route.ts` GET — honours `?limit=` (max 100) and returns `status` and `issues_found` for the dashboard.
 
 Not fixed (out of scope for the bug pass): everything under "Cross-cutting findings".
+
+## Security hardening + copy/tier cleanup (Oct 2026)
+- New `lib/security/safeFetch.ts`: SSRF-safe fetch (http/https on 80/443 only, public IPs only incl. IPv4-mapped IPv6, redirects re-validated, 10s timeout, 1–2 MB cap). Now used by `analyze`, `demo-scan`, `check-site` and the brand-awareness scraper. Residual risk: DNS rebinding race (documented in the file).
+- New `lib/security/rateLimit.ts`: best-effort in-memory limiter (per instance; only slows abuse on serverless). Real protection is auth; move to Upstash/Supabase when traffic grows.
+- `analyze`, `brand-awareness/analyze`, `check-site` now **require a signed-in user** and are rate limited per user. Brand and monitor pages show a sign-in/limit message instead of a silent failure. `demo-scan` stays public (3/min, 15/day per IP).
+- New `lib/plans.ts`: one place for tier labels/badges (`starter` = Gladiator $39, `pro` = Centurion $99, per 6 months). Navbar and dashboard use it.
+- Stale copy removed: "60-day trial", "invite-only", "free full report", "Request Trial", "Upgrade to Pro" (UI + API messages).
+- Still true after this pass: no plan limits are enforced server-side and there is no billing (see cross-cutting findings above). Signed-in users still get the legacy 1-website free tier in the backend.

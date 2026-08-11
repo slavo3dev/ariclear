@@ -278,14 +278,13 @@ function TeaserResult({
 							'linear-gradient(135deg, #3c2a18 0%, #6b4226 100%)',
 						boxShadow: '0 2px 12px rgba(60,42,24,0.25)',
 					}}>
-					Get the Full Report — Free
+					Get the Full Report
 					<span className='ml-2 inline-block transition-transform duration-150 group-hover:translate-x-0.5'>
 						→
 					</span>
 				</button>
 				<p className='mt-2 text-center text-[11px] text-[#a09080]'>
-					No credit card · Full AI-SEO score · Rewrite suggestions ·
-					PDF export
+					Full AI-SEO score · Rewrite suggestions · PDF export
 				</p>
 			</div>
 		</div>
@@ -560,7 +559,7 @@ export function DemoScanSection({
 					{state === 'idle' && (
 						<div className='mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1'>
 							{[
-								'✓ Free, no credit card',
+								'✓ Free demo, no credit card',
 								'✓ Works on any public site',
 								'✓ Results in ~20 seconds',
 							].map((item) => (

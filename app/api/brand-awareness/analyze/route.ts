@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { supabaseAriClearServer } from "@/lib/supabase/auth/server";
+import { safeFetch } from "@/lib/security/safeFetch";
+import { rateLimit } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -101,11 +104,10 @@ async function scrapeWebsite(url: string): Promise<string | null> {
     // Normalize URL
     const normalized = url.startsWith("http") ? url : `https://${url}`;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(normalized, {
-      signal: controller.signal,
+    // SSRF-safe: public hosts only, redirects re-validated, size/time capped
+    const res = await safeFetch(normalized, {
+      timeoutMs: 8000,
+      maxBytes: 1_000_000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; AriClear-BrandBot/1.0; +https://ariclear.com)",
@@ -113,11 +115,9 @@ async function scrapeWebsite(url: string): Promise<string | null> {
       },
     });
 
-    clearTimeout(timeout);
-
     if (!res.ok) return null;
 
-    const html = await res.text();
+    const html = res.body;
 
     // Extract meaningful text — title, meta description, h1-h3, hero-ish paragraphs
     const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ?? "";
@@ -440,6 +440,24 @@ ABSOLUTE RULES:
 
 export async function POST(req: Request) {
   try {
+    // Auth: every analysis costs an Anthropic call, so it requires a signed-in user.
+    const supabase = await supabaseAriClearServer();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const limit = rateLimit(`brand:${user.id}`, 5, 60_000);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "Too many analyses. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } }
+      );
+    }
+
     const data = (await req.json()) as RequestData;
     const { businessName, businessDescription, targetAudience, websiteUrl, platforms } = data;
 
@@ -447,6 +465,13 @@ export async function POST(req: Request) {
     if (!businessName?.trim() || !businessDescription?.trim() || !targetAudience?.trim()) {
       return NextResponse.json(
         { error: "Missing required fields: businessName, businessDescription, and targetAudience are required." },
+        { status: 400 }
+      );
+    }
+
+    if (businessName.length > 200 || targetAudience.length > 500) {
+      return NextResponse.json(
+        { error: "Business name or target audience is too long." },
         { status: 400 }
       );
     }
@@ -474,7 +499,7 @@ export async function POST(req: Request) {
     console.log("🔍 AriClear brand analysis starting for:", businessName);
 
     // ── Platforms ───────────────────────────────────────────────────────────
-    const activePlatforms = Object.entries(platforms).filter(
+    const activePlatforms = Object.entries(platforms ?? {}).filter(
       ([, value]) => value && value.trim() !== ""
     );
 
