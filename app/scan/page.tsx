@@ -330,35 +330,6 @@ function GenericErrorBanner({ message }: { message: string }) {
 }
 
 // ─────────────────────────────────────────────
-// Auto-trigger video render (fire and forget)
-// ─────────────────────────────────────────────
-
-function triggerVideoRender(scanId: string, url: string) {
-	fetch('/api/video/request', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			scan_id: scanId,
-			url,
-			style: 'bold',
-			format: 'reels',
-			script: [],
-		}),
-	})
-		.then((r) => r.json())
-		.then((jobData) => {
-			const jobId = jobData?.job?.id;
-			if (!jobId) return;
-			fetch('/api/video/render', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ job_id: jobId }),
-			}).catch(() => {});
-		})
-		.catch(() => {});
-}
-
-// ─────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────
 
@@ -469,8 +440,6 @@ export default function ScanPage() {
 					const scanId = saveJson?.scan?.id;
 					toast.success('Scan saved!');
 					if (scanId) {
-						// Fire video render in background — does not block redirect
-						triggerVideoRender(scanId, cleanedUrl);
 						router.push(`/scan/${scanId}`);
 					} else {
 						await fetchLimitStatus();

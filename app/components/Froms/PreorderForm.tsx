@@ -13,10 +13,10 @@ const TIER_CONFIG = {
 		label: 'Centurion Plan',
 		websites: '3',
 		maxWebsites: 3,
-		badge: 'Centurion · 3 Websites · 1 Expert Session/mo',
+		badge: 'Centurion · 3 Websites',
 		headline: 'Become a Centurion',
 		description:
-			"3 websites, unlimited scans, Brand Awareness tool, and 1 live expert session per month. We'll reach out within 24 hours.",
+			"3 websites, unlimited scans, full reports and scan history, plus early access to the AI visibility check. We'll reach out within 24 hours.",
 	},
 	starter: {
 		label: 'Gladiator Plan',

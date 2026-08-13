@@ -5,9 +5,6 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan, ActionStep } from './page';
-import type { VideoJobStatus } from './VideoPlayer';
-import { VideoPlayer } from './VideoPlayer';
-import { VideoCreatorPanel } from './VideoCreatorPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -134,13 +131,7 @@ function Tag({ children }: { children: React.ReactNode }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ScanResultsClient({
-	scan,
-	videoJob,
-}: {
-	scan: Scan;
-	videoJob: VideoJobStatus | null;
-}) {
+export function ScanResultsClient({ scan }: { scan: Scan }) {
 	const router = useRouter();
 	const [promptCopied, setPromptCopied] = useState(false);
 
@@ -159,9 +150,6 @@ export function ScanResultsClient({
 				className='flex items-center gap-1.5 text-xs font-medium text-choco-500 transition hover:text-choco-900'>
 				← New scan
 			</button>
-
-			{/* ── VIDEO PLAYER — shows real MP4 or loading state ── */}
-			<VideoPlayer initialJob={videoJob} scanId={scan.id} />
 
 			{/* Header */}
 			<div className='rounded-3xl border border-choco-100 bg-white p-5 shadow-sm'>
@@ -348,9 +336,6 @@ export function ScanResultsClient({
 					</div>
 				</Section>
 			)}
-
-			{/* Video creator — custom social video */}
-			<VideoCreatorPanel scan={scan} />
 		</div>
 	);
 }

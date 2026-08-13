@@ -13,7 +13,6 @@
 		"isolatedModules": true,
 		"jsx": "react-jsx",
 		"incremental": true,
-		"ignoreDeprecations": "6.0",
 		"baseUrl": ".",
 		"plugins": [{ "name": "next" }],
 		"paths": {
@@ -27,8 +26,7 @@
 			"@/lib": ["./lib"],
 			"@/helpers/*": ["./helpers/*"],
 			"@/helpers": ["./helpers"],
-			"@/components/*": ["./app/components/*"],
-			"@/remotion/*": ["./remotion/*"]
+			"@/components/*": ["./app/components/*"]
 		}
 	},
 	"include": [

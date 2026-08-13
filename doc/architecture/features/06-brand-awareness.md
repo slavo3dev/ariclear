@@ -1,3 +1,5 @@
+> **STATUS: PARKED (Oct 2026).** Hidden from the navbar and pricing; code kept (`app/brand-awareness`, `app/api/brand-awareness/analyze`, login required). Plan: reuse its entity-extraction logic for the AI-visibility check, then delete or fold in. See [feature-audit.md](../../../business/feature-audit.md).
+
 # Brand Awareness Evaluator
 
 ## Purpose

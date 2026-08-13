@@ -1,5 +1,5 @@
 // app/scan/[id]/page.tsx
-// Server component — fetches scan + latest video job on the server.
+// Server component — fetches the scan on the server.
 // Passes both to ScanResultsClient as props.
 
 import { redirect } from 'next/navigation';
@@ -7,7 +7,6 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Navbar, SiteFooter } from '@ariclear/components';
 import { ScanResultsClient } from './ScanResultsClient';
-import type { VideoJobStatus } from './VideoPlayer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,24 +87,11 @@ export default async function ScanResultPage({
 		);
 	}
 
-	// Fetch latest video job for this scan
-	const { data: videoJob } = await supabase
-		.from('video_jobs')
-		.select('id, status, cloudinary_url, error_message')
-		.eq('scan_id', id)
-		.eq('user_id', user.id)
-		.order('created_at', { ascending: false })
-		.limit(1)
-		.maybeSingle();
-
 	return (
 		<div className='flex min-h-screen flex-col bg-cream-50'>
 			<Navbar />
 			<main className='mx-auto w-full max-w-2xl flex-1 px-4 py-10'>
-				<ScanResultsClient
-					scan={scan as Scan}
-					videoJob={(videoJob as VideoJobStatus) ?? null}
-				/>
+				<ScanResultsClient scan={scan as Scan} />
 			</main>
 			<SiteFooter />
 		</div>

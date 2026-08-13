@@ -357,15 +357,6 @@ export function Navbar() {
 												onClick={closeDropdown}
 											/>
 											<NavLink
-												href='/website-monitor'
-												icon='🌐'
-												label='Website Monitor'
-												isActive={isActive(
-													'/website-monitor',
-												)}
-												onClick={closeDropdown}
-											/>
-											<NavLink
 												href='/history'
 												icon='📜'
 												label='History'
@@ -380,45 +371,17 @@ export function Navbar() {
 												Tools
 											</p>
 
-											{/* Brand Awareness */}
-											<Link
-												href='/brand-awareness'
+											<a
+												href={CALENDLY_URL}
+												target='_blank'
+												rel='noopener noreferrer'
 												onClick={closeDropdown}
-												className={`flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 ${
-													isActive('/brand-awareness')
-														? 'bg-choco-50 text-choco-900 font-semibold'
-														: 'text-choco-700 hover:bg-choco-50 hover:text-choco-900'
-												}`}>
+												className='flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 text-choco-700 hover:bg-choco-50 hover:text-choco-900'>
 												<span className='text-base w-5 text-center'>
-													📣
+													🧑‍🏫
 												</span>
-												<span className='flex-1'>
-													Brand Awareness
-												</span>
-												<span className='text-[10px] text-choco-400 bg-choco-100 rounded-full px-2 py-0.5 font-medium'>
-													One-time
-												</span>
-											</Link>
-
-											{/* Ask Ari */}
-											<Link
-												href='/ask-ari'
-												onClick={closeDropdown}
-												className={`flex items-center gap-3 px-4 py-2.5 text-sm transition rounded-lg mx-1 ${
-													isActive('/ask-ari')
-														? 'bg-choco-50 text-choco-900 font-semibold'
-														: 'text-choco-700 hover:bg-choco-50 hover:text-choco-900'
-												}`}>
-												<span className='text-base w-5 text-center'>
-													💬
-												</span>
-												<span className='flex-1'>
-													Ask Ari
-												</span>
-												<span className='text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium'>
-													24–48h
-												</span>
-											</Link>
+												<span className='flex-1'>Expert review</span>
+											</a>
 										</div>
 
 										{/* ── Settings + Logout ───────────────────────────── */}
@@ -521,11 +484,6 @@ export function Navbar() {
 												label: 'Site Scan',
 											},
 											{
-												href: '/website-monitor',
-												icon: '🌐',
-												label: 'Website Monitor',
-											},
-											{
 												href: '/history',
 												icon: '📜',
 												label: 'History',
@@ -548,32 +506,15 @@ export function Navbar() {
 											</p>
 										</div>
 
-										<Link
-											href='/brand-awareness'
+										<a
+											href={CALENDLY_URL}
+											target='_blank'
+											rel='noopener noreferrer'
 											onClick={closeMobile}
-											className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition ${isActive('/brand-awareness') ? 'bg-white/70 font-semibold text-choco-900' : ''}`}>
-											<span>📣</span>
-											<span className='flex-1'>
-												Brand Awareness
-											</span>
-											<span className='text-[10px] text-choco-400 bg-choco-100 rounded-full px-2 py-0.5'>
-												One-time
-											</span>
-										</Link>
-
-										{/* Ask Ari — mobile */}
-										<Link
-											href='/ask-ari'
-											onClick={closeMobile}
-											className={`flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition ${isActive('/ask-ari') ? 'bg-white/70 font-semibold text-choco-900' : ''}`}>
-											<span>💬</span>
-											<span className='flex-1'>
-												Ask Ari
-											</span>
-											<span className='text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5'>
-												24–48h
-											</span>
-										</Link>
+											className='flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/70 transition'>
+											<span>🧑‍🏫</span>
+											<span className='flex-1'>Expert review</span>
+										</a>
 
 										{/* Settings */}
 										<Link

@@ -220,6 +220,8 @@ The README should be rewritten from this document.
 
 ## 11b. Per-feature docs
 
+> **Update (Oct 2026):** video, Ask Ari and the website monitor were removed and Brand Awareness parked — the stack table, API list and §6.3/§6.4 above describe the pre-cleanup system. Current state: [features/README.md](features/README.md).
+
 Detailed docs for each feature are in [features/](features/README.md). Findings that change this document: nothing is tier-gated server-side; the recap video pipeline fails as written (5 scenes vs 4 image prompts) ; Ask Ari imports a client that is not exported; trend tracking and monitoring are not implemented as described.
 
 ## 12. Scope & confidence

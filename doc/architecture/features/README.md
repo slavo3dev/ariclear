@@ -8,10 +8,10 @@ One doc per feature. Each follows the same template: purpose, user flow, files, 
 | 2 | Core website scan + results + PDF | [02](02-website-scan-core.md) | Works | `/api/analyze` unauthenticated, no SSRF guard, quota checked *after* the OpenAI call; server trusts client-sent report; severity/category are invented in the UI |
 | 3 | History, dashboard, saved scans | [03](03-history-dashboard-saved-scans.md) | Partly | No trend tracking exists; checklist progress is never saved; dashboard expects fields the API doesn't return |
 | 4 | Auth, accounts, tiers, plan requests | [04](04-auth-accounts-plans.md) | Partly | No code maps a tier to limits or grants a paid tier; open redirect in `/api/auth/confirm`; login returns tokens in JSON |
-| 5 | Website monitor | [05](05-website-monitor.md) | Thin | One-shot manual check, nothing stored or scheduled; not gated; open proxy |
-| 6 | Brand awareness | [06](06-brand-awareness.md) | Works | No auth or rate limit (spends Anthropic credits); `max_tokens` 2500 risks truncated JSON; results not saved; not gated |
-| 7 | Ask Ari expert Q&A | [07](07-ask-ari-expert-qa.md) | Likely broken | Imports `supabaseAriClear` from `@/lib/video` (not exported) and the admin toggle calls a route that doesn't exist; no quota for "expert sessions" |
-| 8 | AI recap video | [08](08-ai-recap-video.md) | Broken as written | Gemini returns 5 scenes, image step requires exactly 4; composition ignores images and style; render not viable on serverless; no gating or quota |
+| 5 | Website monitor | [05](archive/05-website-monitor.md) | **Removed** | One-shot manual check, nothing stored or scheduled; not gated; open proxy |
+| 6 | Brand awareness | [06](06-brand-awareness.md) | **Parked** (hidden, login required) | No auth or rate limit (spends Anthropic credits); `max_tokens` 2500 risks truncated JSON; results not saved; not gated |
+| 7 | Ask Ari expert Q&A | [07](archive/07-ask-ari-expert-qa.md) | **Removed** | Imports `supabaseAriClear` from `@/lib/video` (not exported) and the admin toggle calls a route that doesn't exist; no quota for "expert sessions" |
+| 8 | AI recap video | [08](archive/08-ai-recap-video.md) | **Removed** | Gemini returns 5 scenes, image step requires exactly 4; composition ignores images and style; render not viable on serverless; no gating or quota |
 
 ## Cross-cutting findings
 
@@ -36,3 +36,14 @@ Not fixed (out of scope for the bug pass): everything under "Cross-cutting findi
 - New `lib/plans.ts`: one place for tier labels/badges (`starter` = Gladiator $39, `pro` = Centurion $99, per 6 months). Navbar and dashboard use it.
 - Stale copy removed: "60-day trial", "invite-only", "free full report", "Request Trial", "Upgrade to Pro" (UI + API messages).
 - Still true after this pass: no plan limits are enforced server-side and there is no billing (see cross-cutting findings above). Signed-in users still get the legacy 1-website free tier in the backend.
+
+## Cleanup executed (Oct 2026)
+Per [feature-audit.md](../../business/feature-audit.md):
+- **Removed:** AI recap video (`app/api/video`, `lib/video`, `remotion/`, video UI in `scan/[id]`, auto-render in `scan/page.tsx`), Ask Ari (`app/ask-ari`, `app/api/ask-ari`, `app/api/admin`), Website monitor (`app/website-monitor`, `app/api/check-site`). Navbar now links to a paid "Expert review" booking link instead.
+- **Dependencies dropped (8):** `remotion`, `@remotion/{bundler,cli,renderer}`, `replicate`, `cloudinary`, `@google-cloud/text-to-speech`, `@google/generative-ai`. Lockfile regenerated (-2,479 lines). `next.config.ts` no longer needs `serverExternalPackages`.
+- **Env vars no longer needed:** `GEMINI_API_KEY`, `REPLICATE_API_TOKEN`, `CLOUDINARY_*`, Google TTS credentials.
+- **Parked:** Brand Awareness (hidden from nav/pricing).
+- **Pricing copy:** removed uptime monitoring, Brand Awareness, expert-sessions-per-month; added "Add-on: 30-min expert review" and "Early access: AI visibility check (coming soon)" on Centurion.
+- **Config fix:** removed invalid `ignoreDeprecations: "6.0"` from `tsconfig.json` (broke `next build` on TypeScript 5.9).
+- **Verified:** `tsc --noEmit` clean and `next build` succeeds (28 routes).
+- **Not done (still in DB):** tables `video_jobs`, `questions`, `comments`, `admin_users` — export/check for real data, then drop. `/dashboard` kept for plan/usage info (merge into history later).

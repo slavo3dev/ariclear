@@ -1,3 +1,5 @@
+> **STATUS: REMOVED (Oct 2026).** The code for *AI recap video* was deleted from the repo; it remains in git history (see commit that adds this banner for the last version). This document is kept as a record of how it worked and why it was cut — see [feature-audit.md](../../../business/feature-audit.md). Findings below describe the removed code.
+
 # AI Recap Video
 
 ## Purpose
