@@ -32,6 +32,16 @@ const plans = [
 			},
 			{ text: 'CTA clarity analysis', included: true, highlight: false },
 			{
+				text: 'Test-your-rewrite scoring',
+				included: true,
+				highlight: true,
+			},
+			{
+				text: 'Technical readiness checks + copy-paste fixes',
+				included: true,
+				highlight: true,
+			},
+			{
 				text: 'Full PDF reports + save & archive',
 				included: true,
 				highlight: false,
@@ -78,6 +88,16 @@ const plans = [
 				highlight: false,
 			},
 			{ text: 'CTA clarity analysis', included: true, highlight: false },
+			{
+				text: 'Test-your-rewrite scoring',
+				included: true,
+				highlight: true,
+			},
+			{
+				text: 'Technical readiness checks + copy-paste fixes',
+				included: true,
+				highlight: true,
+			},
 			{
 				text: 'Full PDF reports + save & archive',
 				included: true,

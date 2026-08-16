@@ -12,6 +12,7 @@ One doc per feature. Each follows the same template: purpose, user flow, files, 
 | 6 | Brand awareness | [06](06-brand-awareness.md) | **Parked** (hidden, login required) | No auth or rate limit (spends Anthropic credits); `max_tokens` 2500 risks truncated JSON; results not saved; not gated |
 | 7 | Ask Ari expert Q&A | [07](archive/07-ask-ari-expert-qa.md) | **Removed** | Imports `supabaseAriClear` from `@/lib/video` (not exported) and the admin toggle calls a route that doesn't exist; no quota for "expert sessions" |
 | 8 | AI recap video | [08](archive/08-ai-recap-video.md) | **Removed** | Gemini returns 5 scenes, image step requires exactly 4; composition ignores images and style; render not viable on serverless; no gating or quota |
+| 9 | Rewrite tester + technical checks | [09](09-rewrite-tester-and-technical-checks.md) | **New** | Not tier-gated or persisted yet |
 
 ## Cross-cutting findings
 

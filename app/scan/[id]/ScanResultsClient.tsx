@@ -5,6 +5,8 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan, ActionStep } from './page';
+import { RewriteTester } from './RewriteTester';
+import { TechnicalChecks } from './TechnicalChecks';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -251,6 +253,9 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 				</div>
 			</Section>
 
+			{/* Measured technical readiness + copy-paste fixes */}
+			<TechnicalChecks scanId={scan.id} />
+
 			{/* Suggested copy */}
 			{(scan.suggested_headline ||
 				scan.suggested_subheadline ||
@@ -285,6 +290,16 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 					</div>
 				</Section>
 			)}
+
+			{/* Test a rewrite against the live site before publishing */}
+			<RewriteTester
+				scanId={scan.id}
+				initial={{
+					headline: scan.suggested_headline ?? '',
+					subheadline: scan.suggested_subheadline ?? '',
+					cta: scan.suggested_cta ?? '',
+				}}
+			/>
 
 			{/* Action plan */}
 			{scan.action_plan?.length > 0 && (

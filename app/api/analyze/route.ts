@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import * as cheerio from "cheerio";
+import { extractPageContent } from "@/lib/analysis/extractPage";
 import { supabaseAriClearServer } from "@/lib/supabase/auth/server";
 import { safeFetch, UnsafeUrlError } from "@/lib/security/safeFetch";
 import { rateLimit } from "@/lib/security/rateLimit";
@@ -17,28 +17,6 @@ function isValidHttpUrl(input: string) {
   } catch {
     return false;
   }
-}
-
-function extractTextFromHtml(html: string) {
-  const $ = cheerio.load(html);
-
-  const title = $("title").first().text().trim();
-  const metaDescription =
-    $('meta[name="description"]').attr("content")?.trim() || "";
-
-  const h1 = $("h1").first().text().trim();
-  const h2s = $("h2")
-    .slice(0, 6)
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter(Boolean);
-
-  $("script, style, noscript, svg, img").remove();
-
-  const bodyTextRaw = $("body").text().replace(/\s+/g, " ").trim();
-  const bodySnippet = bodyTextRaw.slice(0, 5000);
-
-  return { title, metaDescription, h1, h2s, bodySnippet };
 }
 
 function isReportShape(obj: any) {
@@ -125,7 +103,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    const extracted = extractTextFromHtml(html);
+    const extracted = extractPageContent(html);
 
     console.log("📄 Extracted content, calling OpenAI...");
 
