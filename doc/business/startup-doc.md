@@ -354,4 +354,4 @@ Competitors & pricing:
 - [Hotjar vs Microsoft Clarity](https://www.joinsecret.com/compare/hotjar-vs-microsoft-clarity)
 - [LandingScore alternatives — AlternativeTo](https://alternativeto.net/software/landingscore)
 
-Caveats: prices change frequently and vary by source; funding/ARR figures for Peec come from third-party summaries; Geoptie (named in `Description.md`) was not verified. Re-check anything you quote publicly
+Caveats: prices change frequently and vary by source; funding/ARR figures for Peec come from third-party summaries; Geoptie (named in `Description.md`) was not verified. Re-check anything you quote publicly.
