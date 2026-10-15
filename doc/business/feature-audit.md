@@ -141,4 +141,4 @@ Expected result: ~46% fewer lines, ~8 fewer dependencies, 5 fewer vendor account
 - [Stripe pricing breakdown 2026 — Flexprice](https://flexprice.io/blog/stripe-pricing-breakdown-2026) · [Stripe pricing — Toolradar](https://toolradar.com/tools/stripe/pricing)
 - Competitor pricing/funding from the earlier market research: see [startup-doc.md](startup-doc.md) §15.
 
-Caveats: prices change; several sources are vendor or affiliate blogs; Stripe fees vary by country — confirm in your Stripe dashboard
+Caveats: prices change; several sources are vendor or affiliate blogs; Stripe fees vary by country — confirm in your Stripe dashboard.
