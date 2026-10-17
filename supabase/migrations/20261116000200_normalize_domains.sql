@@ -26,7 +26,7 @@ as $$
 	select regexp_replace(rtrim(lower(btrim(p)), '.'), '^www\.', '')
 $$;
 
--- ─── 2. Merge duplicate site rows ───────────────────────────────────────────
+-- ─── 2. Merge duplicate site rows 
 
 update public.user_websites k
 set last_scanned_at = g.latest
