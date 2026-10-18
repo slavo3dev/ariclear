@@ -15,7 +15,7 @@
 
 begin;
 
--- ─── 1. normalize_domain ────────────────────────────────────────────────────
+-- ─── 1. normalize_domain 
 
 create or replace function public.normalize_domain(p text)
 returns text
