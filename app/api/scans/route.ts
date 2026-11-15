@@ -1,22 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
+import {
+	getEntitlements,
+	EntitlementsUnavailableError,
+} from '@/lib/entitlements.server';
 
 // GET /api/scans - Get all scans for the authenticated user
 export async function GET(request: NextRequest) {
 	try {
 		const supabase = await supabaseAriClearServer();
-
-		console.log('GET /api/scans - Starting...');
-
-		// Check authentication
 		const {
 			data: { user },
 			error: authError,
 		} = await supabase.auth.getUser();
-
-		console.log('User ID:', user?.id);
-		console.log('Auth error:', authError);
 
 		if (authError || !user) {
 			return NextResponse.json(
@@ -25,14 +22,13 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Get query parameters for filtering and sorting
+		// Query parameters for filtering and sorting
 		const { searchParams } = new URL(request.url);
 		const filter = searchParams.get('filter');
 		const sortBy = searchParams.get('sortBy') || 'date';
 
 		let query = supabase.from('scans').select('*').eq('user_id', user.id);
 
-		// Apply filters
 		if (filter === 'recent') {
 			const weekAgo = new Date();
 			weekAgo.setDate(weekAgo.getDate() - 7);
@@ -41,7 +37,6 @@ export async function GET(request: NextRequest) {
 			query = query.lt('overall_score', 70);
 		}
 
-		// Apply sorting
 		if (sortBy === 'score') {
 			query = query.order('overall_score', { ascending: false });
 		} else {
@@ -55,13 +50,10 @@ export async function GET(request: NextRequest) {
 
 		const { data, error } = await query;
 
-		console.log('Scans found:', data?.length);
-		console.log('Query error:', error);
-
 		if (error) {
-			console.error('Error fetching scans:', error);
+			console.error('[scans] list failed:', error.code ?? 'unknown');
 			return NextResponse.json(
-				{ error: 'Failed to fetch scans', details: error.message },
+				{ error: 'Failed to fetch scans' },
 				{ status: 500 },
 			);
 		}
@@ -74,8 +66,8 @@ export async function GET(request: NextRequest) {
 		}));
 
 		return NextResponse.json({ scans });
-	} catch (error) {
-		console.error('Server error:', error);
+	} catch {
+		console.error('[scans] list failed: unexpected');
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },
@@ -83,20 +75,21 @@ export async function GET(request: NextRequest) {
 	}
 }
 
-// POST /api/scans - Create a new scan WITH WEBSITE LIMIT CHECK
+// POST /api/scans - Save the report that /api/analyze just produced.
+//
+// /api/analyze is the gate: it checks the plan and atomically claims the scan
+// (site slot + lifetime counter) before returning a report. Saving is only
+// allowed for a site that was claimed, and only while the user has fewer saved
+// scans than claimed scans, so this route cannot be used to get extra scans.
+// (Phase 2 moves the save into /api/analyze itself and removes this route's
+// trust in the browser-sent report.)
 export async function POST(request: NextRequest) {
 	try {
 		const supabase = await supabaseAriClearServer();
-
-		console.log('POST /api/scans - Starting...');
-
-		// Check authentication
 		const {
 			data: { user },
 			error: authError,
 		} = await supabase.auth.getUser();
-
-		console.log('User ID:', user?.id);
 
 		if (authError || !user) {
 			return NextResponse.json(
@@ -105,199 +98,60 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const body = await request.json();
-		const { analyzeResult, url } = body;
+		const body = await request.json().catch(() => null);
+		const analyzeResult = body?.analyzeResult;
+		const url = body?.url;
 
-		console.log('Request URL:', url);
-
-		if (!analyzeResult || !url) {
+		if (!analyzeResult || typeof url !== 'string' || !url) {
 			return NextResponse.json(
 				{ error: 'Missing required fields' },
 				{ status: 400 },
 			);
 		}
 
-		// Calculate scores
-		const humanScore = analyzeResult.human?.clarityScore ?? 0;
-		const aiScore = analyzeResult.ai?.aiSeoScore ?? 0;
-		const combinedScore = Math.round((humanScore + aiScore) / 2);
-
-		console.log(
-			'Scores - Human:',
-			humanScore,
-			'AI:',
-			aiScore,
-			'Combined:',
-			combinedScore,
-		);
-
-		// Parse domain from URL
-		let domain;
+		let domain: string;
 		try {
 			domain = new URL(url).hostname;
-			console.log('Parsed domain:', domain);
 		} catch {
 			return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
 		}
 
-		// ========================================
-		// CHECK WEBSITE LIMIT
-		// ========================================
+		const ent = await getEntitlements(user.id);
 
-		console.log('Checking if website exists...');
-
-		// Check if this domain already exists for user
-		const { data: existingWebsite, error: websiteCheckError } =
-			await supabase
-				.from('user_websites')
-				.select('id')
-				.eq('user_id', user.id)
-				.eq('domain', domain)
-				.single();
-
-		console.log('Existing website:', existingWebsite);
-		console.log('Website check error:', websiteCheckError);
-
-		// If new website, check if user has reached their limit
-		if (!existingWebsite) {
-			console.log('New website - checking subscription limits...');
-
-			// Get user's subscription info
-			const { data: subscription, error: subError } = await supabase
-				.from('user_subscriptions')
-				.select('tier, websites_limit, trial_expires_at')
-				.eq('user_id', user.id)
-				.single();
-
-			console.log('Subscription:', subscription);
-			console.log('Subscription error:', subError);
-
-			if (!subscription) {
-				console.log('No subscription found - creating default...');
-
-				// Create default subscription
-				await supabase.from('user_subscriptions').insert({
-					user_id: user.id,
-					tier: 'free',
-					websites_limit: 1,
-				});
-
-				// Count current websites against free limit
-				const { count } = await supabase
-					.from('user_websites')
-					.select('*', { count: 'exact', head: true })
-					.eq('user_id', user.id);
-
-				const currentCount = count || 0;
-				console.log('Current website count:', currentCount);
-
-				if (currentCount >= 1) {
-					return NextResponse.json(
-						{
-							error: 'Website limit reached',
-							errorCode: 'SCAN_LIMIT_REACHED',
-							message: `You've reached your limit of 1 website. Choose a plan to track more sites.`,
-							limit: 1,
-							current: currentCount,
-							tier: 'free',
-							requiresUpgrade: true,
-						},
-						{ status: 403 },
-					);
-				}
-			} else {
-				// Check if trial has expired
-				if (
-					subscription.tier === 'trial' &&
-					subscription.trial_expires_at
-				) {
-					const now = new Date();
-					const expiresAt = new Date(subscription.trial_expires_at);
-
-					if (now > expiresAt) {
-						return NextResponse.json(
-							{
-								error: 'Trial expired',
-								errorCode: 'TRIAL_EXPIRED',
-								message:
-									'Your trial has ended. Choose a plan to continue tracking websites.',
-								limit: subscription.websites_limit,
-								tier: 'trial_expired',
-								requiresUpgrade: true,
-							},
-							{ status: 403 },
-						);
-					}
-				}
-
-				// Count current websites
-				const { count } = await supabase
-					.from('user_websites')
-					.select('*', { count: 'exact', head: true })
-					.eq('user_id', user.id);
-
-				const currentCount = count || 0;
-				console.log(
-					'Current website count:',
-					currentCount,
-					'Limit:',
-					subscription.websites_limit,
-				);
-
-				// Check limit
-				if (currentCount >= subscription.websites_limit) {
-					return NextResponse.json(
-						{
-							error: 'Website limit reached',
-							errorCode: 'SCAN_LIMIT_REACHED',
-							message: `You've reached your limit of ${subscription.websites_limit} website${subscription.websites_limit > 1 ? 's' : ''}. ${
-								subscription.tier === 'free'
-									? 'Choose Gladiator or Centurion to track more sites.'
-									: 'Contact us to expand your plan.'
-							}`,
-							limit: subscription.websites_limit,
-							current: currentCount,
-							tier: subscription.tier,
-							requiresUpgrade: true,
-						},
-						{ status: 403 },
-					);
-				}
-			}
-
-			// Add new website to tracking
-			console.log('Adding new website to tracking...');
-
-			const { error: websiteError } = await supabase
-				.from('user_websites')
-				.insert({
-					user_id: user.id,
-					domain,
-					url,
-					last_scanned_at: new Date().toISOString(),
-				});
-
-			console.log('Website insert error:', websiteError);
-
-			if (websiteError) {
-				console.error('Error adding website:', websiteError);
-				// Continue anyway - don't block the scan
-			}
-		} else {
-			console.log('Existing website - updating last scanned time...');
-
-			// Update last scanned time for existing website
-			await supabase
-				.from('user_websites')
-				.update({ last_scanned_at: new Date().toISOString() })
-				.eq('id', existingWebsite.id);
+		if (!ent.domains.includes(domain)) {
+			return NextResponse.json(
+				{
+					error: 'Scan this site first',
+					errorCode: 'NOT_CLAIMED',
+				},
+				{ status: 403 },
+			);
 		}
 
-		// ========================================
-		// SAVE SCAN DATA
-		// ========================================
+		const { count, error: countError } = await supabase
+			.from('scans')
+			.select('id', { count: 'exact', head: true })
+			.eq('user_id', user.id);
+		if (countError) {
+			console.error('[scans] count failed:', countError.code ?? 'unknown');
+			return NextResponse.json(
+				{ error: 'Failed to save scan' },
+				{ status: 500 },
+			);
+		}
+		if ((count ?? 0) >= ent.scansUsed) {
+			return NextResponse.json(
+				{
+					error: 'There is no unsaved scan to save',
+					errorCode: 'NOTHING_TO_SAVE',
+				},
+				{ status: 403 },
+			);
+		}
 
-		console.log('Preparing scan data...');
+		const humanScore = analyzeResult.human?.clarityScore ?? 0;
+		const aiScore = analyzeResult.ai?.aiSeoScore ?? 0;
+		const combinedScore = Math.round((humanScore + aiScore) / 2);
 
 		const scanData = {
 			user_id: user.id,
@@ -338,37 +192,31 @@ export async function POST(request: NextRequest) {
 			suggestions: analyzeResult.ai?.structuredDataSuggestions || [],
 		};
 
-		console.log('Inserting scan into database...');
-
-		// Insert into database
 		const { data, error } = await supabase
 			.from('scans')
 			.insert(scanData)
 			.select()
 			.single();
 
-		console.log('Scan inserted:', !!data);
-		console.log('Insert error:', error);
-
 		if (error) {
-			console.error('Error saving scan:', error);
+			console.error('[scans] insert failed:', error.code ?? 'unknown');
 			return NextResponse.json(
-				{ error: 'Failed to save scan', details: error.message },
+				{ error: 'Failed to save scan' },
 				{ status: 500 },
 			);
 		}
 
-		console.log('Scan saved successfully with ID:', data.id);
-
 		return NextResponse.json({ scan: data }, { status: 201 });
 	} catch (error) {
-		console.error('Server error:', error);
+		if (error instanceof EntitlementsUnavailableError) {
+			return NextResponse.json(
+				{ error: 'Could not load your plan. Please try again.' },
+				{ status: 500 },
+			);
+		}
+		console.error('[scans] save failed: unexpected');
 		return NextResponse.json(
-			{
-				error: 'Internal server error',
-				details:
-					error instanceof Error ? error.message : 'Unknown error',
-			},
+			{ error: 'Internal server error' },
 			{ status: 500 },
 		);
 	}

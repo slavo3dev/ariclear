@@ -7,21 +7,13 @@ export async function GET(
 	segmentData: { params: Promise<{ id: string }> },
 ) {
 	try {
-		console.log('API: GET /api/scans/[id] called');
-
 		const supabase = await supabaseAriClearServer();
-		const params = await segmentData.params;
-		const { id } = params;
-
-		console.log('API: Fetching scan with ID:', id);
+		const { id } = await segmentData.params;
 
 		const {
 			data: { user },
 			error: authError,
 		} = await supabase.auth.getUser();
-
-		console.log('API: User ID:', user?.id);
-		console.log('API: Auth error:', authError);
 
 		if (authError || !user) {
 			return NextResponse.json(
@@ -37,9 +29,6 @@ export async function GET(
 			.eq('user_id', user.id)
 			.single();
 
-		console.log('API: Scan found:', !!data);
-		console.log('API: Error:', error);
-
 		if (error || !data) {
 			return NextResponse.json(
 				{ error: 'Scan not found' },
@@ -48,8 +37,8 @@ export async function GET(
 		}
 
 		return NextResponse.json({ scan: data });
-	} catch (error) {
-		console.error('Server error:', error);
+	} catch {
+		console.error('[scans/id] get failed: unexpected');
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },
@@ -64,8 +53,7 @@ export async function PATCH(
 ) {
 	try {
 		const supabase = await supabaseAriClearServer();
-		const params = await segmentData.params;
-		const { id } = params;
+		const { id } = await segmentData.params;
 
 		const {
 			data: { user },
@@ -79,8 +67,8 @@ export async function PATCH(
 			);
 		}
 
-		const body = await request.json();
-		const { checklist } = body;
+		const body = await request.json().catch(() => null);
+		const checklist = body?.checklist;
 
 		if (!checklist) {
 			return NextResponse.json(
@@ -98,7 +86,7 @@ export async function PATCH(
 			.single();
 
 		if (error || !data) {
-			console.error('Update error:', error);
+			console.error('[scans/id] update failed:', error?.code ?? 'no row');
 			return NextResponse.json(
 				{ error: 'Failed to update scan' },
 				{ status: 500 },
@@ -106,8 +94,8 @@ export async function PATCH(
 		}
 
 		return NextResponse.json({ scan: data });
-	} catch (error) {
-		console.error('Server error:', error);
+	} catch {
+		console.error('[scans/id] update failed: unexpected');
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },
@@ -115,15 +103,18 @@ export async function PATCH(
 	}
 }
 
-// DELETE /api/scans/[id] - Delete a scan, free website slot if it was the last for that domain
+// DELETE /api/scans/[id] - Delete a scan.
+// When it was the last scan of its site, the database trigger
+// cleanup_user_website_on_scan_delete frees the site slot. Users cannot touch
+// user_websites directly. Deleting never refunds a scan: the lifetime counter
+// in user_subscriptions is not decremented.
 export async function DELETE(
 	request: NextRequest,
 	segmentData: { params: Promise<{ id: string }> },
 ) {
 	try {
 		const supabase = await supabaseAriClearServer();
-		const params = await segmentData.params;
-		const { id } = params;
+		const { id } = await segmentData.params;
 
 		const {
 			data: { user },
@@ -152,7 +143,6 @@ export async function DELETE(
 			);
 		}
 
-		// Delete the scan
 		const { error: deleteError } = await supabase
 			.from('scans')
 			.delete()
@@ -160,48 +150,27 @@ export async function DELETE(
 			.eq('user_id', user.id);
 
 		if (deleteError) {
-			console.error('Error deleting scan:', deleteError);
+			console.error('[scans/id] delete failed:', deleteError.code ?? 'unknown');
 			return NextResponse.json(
 				{ error: 'Failed to delete scan' },
 				{ status: 500 },
 			);
 		}
 
-		// Check if any scans remain for this domain
+		// Did the trigger free the slot?
 		const { count } = await supabase
-			.from('scans')
-			.select('*', { count: 'exact', head: true })
+			.from('user_websites')
+			.select('id', { count: 'exact', head: true })
 			.eq('user_id', user.id)
 			.eq('domain', scan.domain);
 
-		let websiteSlotFreed = false;
-
-		// No scans left for this domain — remove the website slot
-		if ((count ?? 0) === 0) {
-			const { error: websiteDeleteError } = await supabase
-				.from('user_websites')
-				.delete()
-				.eq('user_id', user.id)
-				.eq('domain', scan.domain);
-
-			if (!websiteDeleteError) {
-				websiteSlotFreed = true;
-				console.log('Website slot freed for domain:', scan.domain);
-			} else {
-				console.error(
-					'Failed to free website slot:',
-					websiteDeleteError,
-				);
-			}
-		}
-
 		return NextResponse.json({
 			success: true,
-			websiteSlotFreed,
+			websiteSlotFreed: (count ?? 0) === 0,
 			domain: scan.domain,
 		});
-	} catch (error) {
-		console.error('Server error:', error);
+	} catch {
+		console.error('[scans/id] delete failed: unexpected');
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },

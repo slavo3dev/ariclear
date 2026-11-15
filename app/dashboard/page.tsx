@@ -9,11 +9,13 @@ import { getTierBadgeColor, getTierLabel } from "@/lib/plans";
 
 type SubscriptionInfo = {
   tier: string;
+  isPaid: boolean;
+  isComp: boolean;
+  isExpired: boolean;
+  expiresAt: string | null;
   websites_limit: number;
   websites_used: number;
   websites_remaining: number;
-  trial_expires_at: string | null;
-  is_trial_expired: boolean;
   can_scan: boolean;
 };
 
@@ -128,14 +130,28 @@ export default function DashboardPage() {
                 {getTierLabel(subscription?.tier)}
               </span>
             </div>
-            {subscription?.trial_expires_at && !subscription.is_trial_expired && (
+            {subscription?.isPaid && subscription.expiresAt && (
               <p className="text-xs text-choco-500 mt-2">
-                Trial expires: {formatDate(subscription.trial_expires_at)}
+                Active until {formatDate(subscription.expiresAt)}
               </p>
             )}
-            {subscription?.is_trial_expired && (
+            {subscription?.isPaid && subscription.isComp && !subscription.expiresAt && (
+              <p className="text-xs text-choco-500 mt-2">Complimentary plan</p>
+            )}
+            {subscription?.isExpired && (
               <p className="text-xs text-red-600 mt-2 font-medium">
-                Trial expired
+                Plan ended{subscription.expiresAt ? ` ${formatDate(subscription.expiresAt)}` : ""}.{" "}
+                <Link href="/#pricing" className="underline">
+                  Renew
+                </Link>
+              </p>
+            )}
+            {subscription && !subscription.isPaid && !subscription.isExpired && (
+              <p className="text-xs text-choco-500 mt-2">
+                Free account: 1 scan.{" "}
+                <Link href="/#pricing" className="underline">
+                  See plans
+                </Link>
               </p>
             )}
           </div>
@@ -181,7 +197,9 @@ export default function DashboardPage() {
                 <span className="text-sm text-choco-700">
                   {subscription?.can_scan
                     ? "Ready to scan"
-                    : "Scan limit reached"}
+                    : subscription?.isExpired
+                      ? "Plan ended"
+                      : "Free scan used"}
                 </span>
               </div>
               {subscription?.can_scan && (

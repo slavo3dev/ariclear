@@ -5,6 +5,12 @@ import { extractPageContent } from "@/lib/analysis/extractPage";
 import { supabaseAriClearServer } from "@/lib/supabase/auth/server";
 import { safeFetch, UnsafeUrlError } from "@/lib/security/safeFetch";
 import { rateLimit } from "@/lib/security/rateLimit";
+import { claimScanLimits, scanDenial } from "@/lib/entitlements";
+import {
+  claimScan,
+  getEntitlements,
+  EntitlementsUnavailableError,
+} from "@/lib/entitlements.server";
 
 export const runtime = "nodejs";
 
@@ -76,7 +82,15 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log("🔍 Analyzing URL:", url);
+    const domain = new URL(url).hostname;
+
+    // Entitlements: refuse before spending a model call. The atomic claim
+    // after the model call is the real gate (see claimScan below).
+    const ent = await getEntitlements(user.id);
+    const denied = scanDenial(ent, domain);
+    if (denied) {
+      return NextResponse.json(denied, { status: 403 });
+    }
 
     // Fetch the page
     let html: string;
@@ -104,8 +118,6 @@ export async function POST(req: Request) {
       );
     }
     const extracted = extractPageContent(html);
-
-    console.log("📄 Extracted content, calling OpenAI...");
 
     const instructions = `
 You are AriClear, an expert website clarity and AI-SEO auditor. You are STRICT and HONEST — most websites score between 20–55 on clarity and AI-readability, not 70–90. Do not be generous. Call out real problems using the actual text from the page.
@@ -207,8 +219,6 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
       temperature: 0.15,
     });
 
-    console.log("✅ OpenAI response received");
-
     const outputText = completion.choices[0]?.message?.content?.trim();
     if (!outputText) {
       return NextResponse.json({ error: "Empty AI response." }, { status: 500 });
@@ -217,8 +227,8 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
     let report: any;
     try {
       report = JSON.parse(outputText);
-    } catch (e) {
-      console.error("AI returned invalid JSON:", outputText);
+    } catch {
+      console.error("[analyze] model returned invalid JSON");
       return NextResponse.json(
         { error: "AI returned invalid JSON." },
         { status: 500 }
@@ -226,18 +236,37 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
     }
 
     if (!isReportShape(report)) {
-      console.error("AI returned unexpected shape:", report);
+      console.error("[analyze] model returned an unexpected shape");
       return NextResponse.json(
         { error: "AI returned unexpected response shape." },
         { status: 500 }
       );
     }
 
-    console.log("🎉 Analysis complete");
+    // Count the scan and reserve the site slot atomically. Parallel requests
+    // that all passed the pre-check above stop here; only the allowed number
+    // of them get a report.
+    const claim = await claimScan(user.id, domain, url, claimScanLimits(ent));
+    if (claim !== "ok") {
+      const fresh = await getEntitlements(user.id);
+      const denial = scanDenial(fresh, domain);
+      return NextResponse.json(
+        denial ?? {
+          error: "Could not reserve this scan. Please try again.",
+        },
+        { status: denial ? 403 : 409 }
+      );
+    }
 
     return NextResponse.json(report);
   } catch (err: any) {
-    console.error("❌ Error:", err);
+    if (err instanceof EntitlementsUnavailableError) {
+      return NextResponse.json(
+        { error: "Could not load your plan. Please try again." },
+        { status: 500 }
+      );
+    }
+    console.error("[analyze] failed:", err?.status ?? err?.name ?? "unknown");
 
     // Handle OpenAI rate limit errors specifically
     if (err?.status === 429 || err?.code === "rate_limit_exceeded") {

@@ -7,6 +7,8 @@ import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { runTechnicalChecks } from '@/lib/analysis/technicalChecks';
 import { UnsafeUrlError } from '@/lib/security/safeFetch';
 import { rateLimit } from '@/lib/security/rateLimit';
+import { featureDenial } from '@/lib/entitlements';
+import { getEntitlements } from '@/lib/entitlements.server';
 
 export const runtime = 'nodejs';
 
@@ -23,6 +25,20 @@ export async function GET(
 	} = await supabase.auth.getUser();
 	if (authError || !user) {
 		return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	// Paid feature
+	try {
+		const denied = featureDenial(
+			await getEntitlements(user.id),
+			'technicalChecks',
+		);
+		if (denied) return NextResponse.json(denied, { status: 403 });
+	} catch {
+		return NextResponse.json(
+			{ error: 'Could not load your plan. Please try again.' },
+			{ status: 500 },
+		);
 	}
 
 	const limit = rateLimit(`technical:${user.id}`, 10, 60_000);
@@ -51,7 +67,10 @@ export async function GET(
 		if (err instanceof UnsafeUrlError) {
 			return NextResponse.json({ error: err.message }, { status: 400 });
 		}
-		console.error('[technical] failed:', err);
+		console.error(
+			'[technical] failed:',
+			err instanceof Error ? err.name : 'unknown',
+		);
 		return NextResponse.json(
 			{ error: 'Could not fetch that site to run the checks.' },
 			{ status: 502 },

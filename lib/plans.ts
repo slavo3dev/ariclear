@@ -1,32 +1,30 @@
 // lib/plans.ts
-// Single source of truth for plan (tier) names and badge colours.
+// Display helpers for plan (tier) names and badge colours.
+// Prices, site limits and term length come from lib/entitlements.ts.
 // DB tier keys stay stable (`starter`, `pro`); only the display names change.
+
+import { PAID_PLANS, PLAN_TERM_MONTHS, type PaidTier } from '@/lib/entitlements';
 
 export const PLANS = {
 	starter: {
-		label: 'Gladiator',
-		priceUsd: 39,
-		termMonths: 6,
-		websites: 1,
+		...PAID_PLANS.starter,
+		termMonths: PLAN_TERM_MONTHS,
 		badge: 'bg-green-100 text-green-700 ring-green-300',
 	},
 	pro: {
-		label: 'Centurion',
-		priceUsd: 99,
-		termMonths: 6,
-		websites: 3,
+		...PAID_PLANS.pro,
+		termMonths: PLAN_TERM_MONTHS,
 		badge: 'bg-purple-100 text-purple-700 ring-purple-300',
 	},
 } as const;
 
-export type PaidTier = keyof typeof PLANS;
+export type { PaidTier };
 
-// Non-paid / transitional states that can exist in user_subscriptions
+// Non-paid states that can be shown in the UI
 const OTHER_TIERS: Record<string, { label: string; badge: string }> = {
-	free: { label: 'No plan', badge: 'bg-gray-100 text-gray-700 ring-gray-300' },
-	trial: { label: 'Trial', badge: 'bg-blue-100 text-blue-700 ring-blue-300' },
-	trial_expired: {
-		label: 'Trial ended',
+	free: { label: 'Free', badge: 'bg-gray-100 text-gray-700 ring-gray-300' },
+	expired: {
+		label: 'Plan ended',
 		badge: 'bg-amber-100 text-amber-700 ring-amber-300',
 	},
 };

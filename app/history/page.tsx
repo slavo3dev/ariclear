@@ -43,7 +43,9 @@ type LimitStatus = {
   limit: number;
   current: number;
   limitReached: boolean;
-  trialExpired: boolean;
+  isPaid: boolean;
+  isExpired: boolean;
+  canAddSite: boolean;
 };
 
 function groupByDomain(scans: Scan[]): Record<string, Scan[]> {
@@ -279,7 +281,17 @@ export default function HistoryPage() {
               </div>
               {limitStatus.limitReached ? (
                 <p className="mt-2 text-xs text-amber-700">
-                  Slot limit reached. Use <strong>Remove site</strong> below to free a slot for a new website.
+                  {limitStatus.isExpired
+                    ? 'Your plan has ended. Your scans stay here to read. '
+                    : 'You have used your free scan. '}
+                  <Link href="/#pricing" className="font-semibold underline">
+                    {limitStatus.isExpired ? 'Renew your plan' : 'Choose a plan'}
+                  </Link>{' '}
+                  to re-scan and track changes.
+                </p>
+              ) : !limitStatus.canAddSite ? (
+                <p className="mt-2 text-xs text-amber-700">
+                  All slots used. You can re-scan your sites, or use <strong>Remove site</strong> below to free a slot for a new website.
                 </p>
               ) : (
                 <p className="mt-2 text-xs text-choco-500">

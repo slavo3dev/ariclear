@@ -10,6 +10,8 @@ import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { safeFetch } from '@/lib/security/safeFetch';
 import { extractPageContent } from '@/lib/analysis/extractPage';
 import { rateLimit } from '@/lib/security/rateLimit';
+import { featureDenial } from '@/lib/entitlements';
+import { getEntitlements } from '@/lib/entitlements.server';
 
 export const runtime = 'nodejs';
 
@@ -88,6 +90,17 @@ export async function POST(
 	} = await supabase.auth.getUser();
 	if (authError || !user) {
 		return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	// Paid feature
+	try {
+		const denied = featureDenial(await getEntitlements(user.id), 'rewriteTest');
+		if (denied) return NextResponse.json(denied, { status: 403 });
+	} catch {
+		return NextResponse.json(
+			{ error: 'Could not load your plan. Please try again.' },
+			{ status: 500 },
+		);
 	}
 
 	const minute = rateLimit(`rewrite:min:${user.id}`, 6, 60_000);
@@ -219,7 +232,7 @@ export async function POST(
 				{ status: 429 },
 			);
 		}
-		console.error('[rewrite-test] failed:', err?.message ?? err);
+		console.error('[rewrite-test] failed:', err?.status ?? err?.name ?? 'unknown');
 		return NextResponse.json({ error: 'Scoring failed. Try again.' }, { status: 500 });
 	}
 }
