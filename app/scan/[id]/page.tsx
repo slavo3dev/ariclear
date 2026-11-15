@@ -6,7 +6,8 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Navbar, SiteFooter } from '@ariclear/components';
-import { ScanResultsClient } from './ScanResultsClient';
+import { ScanResultsClient, type ScanAccess } from './ScanResultsClient';
+import { getEntitlements } from '@/lib/entitlements.server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,11 +88,29 @@ export default async function ScanResultPage({
 		);
 	}
 
+	// Which paid sections to show. Each paid API route enforces this again.
+	let access: ScanAccess = {
+		features: {
+			rescan: false,
+			rewriteTest: false,
+			technicalChecks: false,
+			pdf: false,
+			trend: false,
+		},
+		isExpired: false,
+	};
+	try {
+		const ent = await getEntitlements(user.id);
+		access = { features: ent.features, isExpired: ent.isExpired };
+	} catch {
+		// Show the scan with paid sections locked rather than failing the page.
+	}
+
 	return (
 		<div className='flex min-h-screen flex-col bg-cream-50'>
 			<Navbar />
 			<main className='mx-auto w-full max-w-2xl flex-1 px-4 py-10'>
-				<ScanResultsClient scan={scan as Scan} />
+				<ScanResultsClient scan={scan as Scan} access={access} />
 			</main>
 			<SiteFooter />
 		</div>

@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -8,25 +9,29 @@ import {
 	Navbar,
 	SiteFooter,
 	Button,
-	usePreorder,
 	useAuth,
 	AuthModal,
 	ScanResultsEnhanced,
 } from '@ariclear/components';
+import { getTierLabel } from '@/lib/plans';
+import { reportFromAnalyze } from '@/lib/report/build';
+import type { PublicEntitlements } from '@/lib/entitlements';
 
 type ErrorCode =
 	| 'SCAN_LIMIT_REACHED'
-	| 'TRIAL_EXPIRED'
+	| 'FREE_SCAN_USED'
+	| 'PLAN_EXPIRED'
+	| 'UPGRADE_REQUIRED'
 	| 'RATE_LIMIT'
 	| 'FETCH_ERROR'
 	| 'AI_ERROR';
 
-type LimitStatus = {
-	tier: string;
+// GET /api/scans/limit
+type LimitStatus = PublicEntitlements & {
 	limit: number;
 	current: number;
+	/** No scan is possible at all (free scan used, or plan ended). */
 	limitReached: boolean;
-	trialExpired: boolean;
 };
 
 type AnalyzeResponse = {
@@ -63,6 +68,7 @@ type AnalyzeResponse = {
 	};
 	error?: string;
 	errorCode?: ErrorCode;
+	message?: string;
 	requiresUpgrade?: boolean;
 	limit?: number;
 	current?: number;
@@ -236,30 +242,26 @@ function AriAnalyzingOverlay({ url }: { url: string }) {
 
 function ScanLimitBanner({
 	limitStatus,
+	message,
 	onUpgrade,
 }: {
 	limitStatus: LimitStatus;
+	message?: string;
 	onUpgrade: () => void;
 }) {
-	const { tier, limit, trialExpired } = limitStatus;
-	const title = trialExpired
-		? 'Your trial has ended'
-		: 'Website limit reached';
-	const body = trialExpired
-		? 'Your trial has ended. Choose a plan to continue scanning and tracking your websites.'
-		: tier === 'free'
-			? `Your current access covers ${limit} website${limit !== 1 ? 's' : ''}. Choose Gladiator or Centurion to scan more sites.`
-			: `You've reached your plan limit of ${limit} website${limit !== 1 ? 's' : ''}. Contact us to expand your plan.`;
-	const upgradeLabel = tier === 'free' ? 'Choose a plan' : 'Upgrade plan';
-	const mailSubject = trialExpired
-		? 'Choose a plan / upgrade'
-		: 'More website scans — upgrade request';
-	const mailBody = `Hi, I've reached my scan limit (tier: ${tier}, limit: ${limit}). I'd like to upgrade or get more scans.`;
+	const title = limitStatus.isExpired
+		? 'Your plan has ended'
+		: 'You have used your free scan';
+	const body =
+		message ??
+		(limitStatus.isExpired
+			? 'Your saved scans are still here. Renew to scan again.'
+			: 'Choose Gladiator or Centurion to re-scan, test rewrites, run technical checks and download PDF reports.');
 
 	return (
 		<div className='mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5'>
 			<div className='flex items-start gap-3'>
-				<span className='mt-0.5 shrink-0 text-xl'>🚫</span>
+				<span className='mt-0.5 shrink-0 text-xl'>🔒</span>
 				<div className='flex-1'>
 					<p className='text-sm font-semibold text-choco-900'>
 						{title}
@@ -270,20 +272,14 @@ function ScanLimitBanner({
 							type='button'
 							onClick={onUpgrade}
 							className='w-full sm:w-auto'>
-							{upgradeLabel}
+							{limitStatus.isExpired ? 'Renew plan' : 'See plans'}
 						</Button>
-						<a
-							href={`mailto:hello@ariclear.com?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`}
+						<Link
+							href='/history'
 							className='inline-flex w-full items-center justify-center rounded-full border border-choco-300 bg-white px-4 py-2 text-sm font-medium text-choco-800 transition-colors hover:bg-choco-50 sm:w-auto'>
-							Contact us
-						</a>
+							View my scans
+						</Link>
 					</div>
-					{tier === 'free' && !trialExpired && (
-						<p className='mt-3 text-[11px] text-choco-500'>
-							Choose a plan to scan more websites and keep
-							full scan history.
-						</p>
-					)}
 				</div>
 			</div>
 		</div>
@@ -335,14 +331,15 @@ function GenericErrorBanner({ message }: { message: string }) {
 
 export default function ScanPage() {
 	const router = useRouter();
-	const { open: openPreorder } = usePreorder();
 	const { user, loading: authLoading } = useAuth();
+	const goToPricing = () => router.push('/#pricing');
 
 	const [authOpen, setAuthOpen] = useState(false);
 	const [targetUrl, setTargetUrl] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [result, setResult] = useState<AnalyzeResponse | null>(null);
 	const [limitStatus, setLimitStatus] = useState<LimitStatus | null>(null);
+	const [limitMessage, setLimitMessage] = useState<string | undefined>();
 	const [limitLoading, setLimitLoading] = useState(false);
 
 	const cleanedUrl = useMemo(() => targetUrl.trim(), [targetUrl]);
@@ -409,13 +406,13 @@ export default function ScanPage() {
 					return;
 				}
 				if (res.status === 403 && json?.requiresUpgrade) {
-					setLimitStatus({
-						tier: json.tier ?? 'free',
-						limit: json.limit ?? 1,
-						current: json.current ?? 0,
-						limitReached: true,
-						trialExpired: json.errorCode === 'TRIAL_EXPIRED',
-					});
+					if (json.errorCode === 'SCAN_LIMIT_REACHED') {
+						// Sites are full, but existing sites can still be re-scanned.
+						setResult({ error: json.message ?? json.error });
+						return;
+					}
+					setLimitMessage(json.message);
+					await fetchLimitStatus();
 					return;
 				}
 				setResult({ error: json?.error || 'Analysis failed.' });
@@ -444,21 +441,16 @@ export default function ScanPage() {
 					} else {
 						await fetchLimitStatus();
 					}
-				} else if (saveRes.status === 403) {
-					const saveError = (await saveRes.json()) as AnalyzeResponse;
-					if (saveError.requiresUpgrade) {
-						setLimitStatus({
-							tier: saveError.tier ?? 'free',
-							limit: saveError.limit ?? 1,
-							current: saveError.current ?? 0,
-							limitReached: true,
-							trialExpired:
-								saveError.errorCode === 'TRIAL_EXPIRED',
-						});
-					}
+				} else {
+					toast.error(
+						'Your scan finished but could not be saved. Please contact us.',
+					);
+					await fetchLimitStatus();
 				}
-			} catch (saveError) {
-				console.error('Error saving scan:', saveError);
+			} catch {
+				toast.error(
+					'Your scan finished but could not be saved. Please contact us.',
+				);
 			}
 		} catch {
 			setResult({ error: 'Network error. Please try again.' });
@@ -475,131 +467,6 @@ export default function ScanPage() {
 		} catch {
 			toast.error('Failed to copy');
 		}
-	};
-
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const transformToEnhancedResult = (apiResult: AnalyzeResponse): any => {
-		const humanScore = apiResult.human?.clarityScore ?? 0;
-		const aiScore = apiResult.ai?.aiSeoScore ?? 0;
-		const combinedScore = Math.round((humanScore + aiScore) / 2);
-
-		const categorizeIssue = (
-			issueText: string,
-		): 'security' | 'privacy' | 'performance' | 'accessibility' => {
-			const text = issueText.toLowerCase();
-			if (
-				text.includes('speed') ||
-				text.includes('load') ||
-				text.includes('performance') ||
-				text.includes('slow') ||
-				text.includes('fast') ||
-				text.includes('image') ||
-				text.includes('optimize') ||
-				text.includes('cache') ||
-				text.includes('seo') ||
-				text.includes('keyword')
-			)
-				return 'performance';
-			if (
-				text.includes('privacy') ||
-				text.includes('gdpr') ||
-				text.includes('cookie') ||
-				text.includes('tracking') ||
-				text.includes('data') ||
-				text.includes('consent') ||
-				text.includes('analytics')
-			)
-				return 'privacy';
-			if (
-				text.includes('security') ||
-				text.includes('ssl') ||
-				text.includes('https') ||
-				text.includes('encrypt') ||
-				text.includes('password') ||
-				text.includes('auth')
-			)
-				return 'security';
-			return 'accessibility';
-		};
-
-		const issues = (apiResult.human?.topIssues ?? []).map((issue, idx) => ({
-			id: `issue-${idx}`,
-			category: categorizeIssue(issue.issue + ' ' + issue.whyItHurts),
-			severity: (['critical', 'high', 'medium', 'low'] as const)[
-				Math.min(idx, 3)
-			],
-			title: issue.issue,
-			description: issue.whyItHurts,
-			impact: issue.fix,
-			fixed: false,
-		}));
-
-		const suggestions = (apiResult.plan?.nextSteps ?? []).map(
-			(step, idx) => ({
-				id: `suggestion-${idx}`,
-				title: step.title,
-				description: step.details,
-				priority: step.impact,
-				estimatedTime:
-					step.effort === 'low'
-						? '1-2 hours'
-						: step.effort === 'medium'
-							? '2-4 hours'
-							: '4-8 hours',
-				resources: [],
-			}),
-		);
-
-		if (apiResult.ai?.structuredDataSuggestions) {
-			apiResult.ai.structuredDataSuggestions.forEach(
-				(suggestion, idx) => {
-					suggestions.push({
-						id: `ai-suggestion-${idx}`,
-						title:
-							suggestion.length > 50
-								? suggestion.substring(0, 50) + '...'
-								: suggestion,
-						description: suggestion,
-						priority: 'medium' as const,
-						estimatedTime: '2-3 hours',
-						resources: [],
-					});
-				},
-			);
-		}
-
-		return {
-			score: combinedScore,
-			metadata: {
-				scannedAt: new Date().toISOString(),
-				url: cleanedUrl,
-				domain: new URL(cleanedUrl).hostname,
-			},
-			issues,
-			suggestions,
-			rawData: {
-				humanClarity: {
-					score: humanScore,
-					whatItSeemsLike: apiResult.human?.whatItSeemsLike,
-					oneSentenceValueProp: apiResult.human?.oneSentenceValueProp,
-					bestGuessAudience: apiResult.human?.bestGuessAudience,
-					confusions: apiResult.human?.confusions,
-				},
-				aiComprehension: {
-					score: aiScore,
-					aiSummary: apiResult.ai?.aiSummary,
-					indexerRead: apiResult.ai?.indexerRead,
-					missingKeywords: apiResult.ai?.missingKeywords,
-				},
-				suggestedCopy: {
-					headline: apiResult.copy?.suggestedHeadline,
-					subheadline: apiResult.copy?.suggestedSubheadline,
-					cta: apiResult.copy?.suggestedCTA,
-				},
-				actionPlan: apiResult.plan?.nextSteps,
-				prompt: apiResult.prompts?.aiSeoPrompt,
-			},
-		};
 	};
 
 	const renderPostAnalyzeError = (r: AnalyzeResponse) => {
@@ -685,7 +552,8 @@ export default function ScanPage() {
 						{!limitLoading && isAtLimit && limitStatus ? (
 							<ScanLimitBanner
 								limitStatus={limitStatus}
-								onUpgrade={openPreorder}
+								message={limitMessage}
+								onUpgrade={goToPricing}
 							/>
 						) : (
 							<>
@@ -719,12 +587,16 @@ export default function ScanPage() {
 								)}
 								{!limitLoading && limitStatus && (
 									<p className='mt-3 text-[11px] text-choco-400'>
-										{limitStatus.current} /{' '}
-										{limitStatus.limit} website
-										{limitStatus.limit !== 1 ? 's' : ''}{' '}
+										{getTierLabel(limitStatus.tier)} ·{' '}
+										{limitStatus.current} / {limitStatus.limit}{' '}
+										website{limitStatus.limit !== 1 ? 's' : ''}{' '}
 										used
-										{limitStatus.tier !== 'free'
-											? ` · ${limitStatus.tier} plan`
+										{!limitStatus.canAddSite &&
+										limitStatus.domains.length > 0
+											? ` · you can re-scan ${limitStatus.domains.join(', ')}`
+											: ''}
+										{!limitStatus.isPaid
+											? ' · free account: 1 scan'
 											: ''}
 									</p>
 								)}
@@ -738,9 +610,10 @@ export default function ScanPage() {
 							renderPostAnalyzeError(result)
 						) : (
 							<ScanResultsEnhanced
-								results={transformToEnhancedResult(result)}
-								onPreorderClick={openPreorder}
+								results={reportFromAnalyze(result, cleanedUrl)}
 								onCopyPrompt={copyToClipboard}
+								canDownloadPdf={limitStatus?.features.pdf ?? false}
+								onUpgradeClick={goToPricing}
 							/>
 						))}
 				</div>

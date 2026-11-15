@@ -7,6 +7,13 @@ import { useRouter } from 'next/navigation';
 import type { Scan, ActionStep } from './page';
 import { RewriteTester } from './RewriteTester';
 import { TechnicalChecks } from './TechnicalChecks';
+import { LockedFeature, PdfDownloadButton } from './PaidFeature';
+import type { Feature } from '@/lib/entitlements';
+
+export type ScanAccess = {
+	features: Record<Feature, boolean>;
+	isExpired: boolean;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,7 +140,13 @@ function Tag({ children }: { children: React.ReactNode }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ScanResultsClient({ scan }: { scan: Scan }) {
+export function ScanResultsClient({
+	scan,
+	access,
+}: {
+	scan: Scan;
+	access: ScanAccess;
+}) {
 	const router = useRouter();
 	const [promptCopied, setPromptCopied] = useState(false);
 
@@ -146,12 +159,18 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 
 	return (
 		<div className='space-y-5'>
-			{/* Back */}
-			<button
-				onClick={() => router.push('/scan')}
-				className='flex items-center gap-1.5 text-xs font-medium text-choco-500 transition hover:text-choco-900'>
-				← New scan
-			</button>
+			{/* Back + PDF */}
+			<div className='flex items-center justify-between gap-3'>
+				<button
+					onClick={() => router.push('/scan')}
+					className='flex items-center gap-1.5 text-xs font-medium text-choco-500 transition hover:text-choco-900'>
+					← New scan
+				</button>
+				<PdfDownloadButton
+					scanId={scan.id}
+					allowed={access.features.pdf}
+				/>
+			</div>
 
 			{/* Header */}
 			<div className='rounded-3xl border border-choco-100 bg-white p-5 shadow-sm'>
@@ -254,7 +273,15 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 			</Section>
 
 			{/* Measured technical readiness + copy-paste fixes */}
-			<TechnicalChecks scanId={scan.id} />
+			{access.features.technicalChecks ? (
+				<TechnicalChecks scanId={scan.id} />
+			) : (
+				<LockedFeature
+					title='Technical readiness'
+					description='Live checks of your title, meta, headings, schema, Open Graph, robots and sitemap, with copy-paste fixes.'
+					isExpired={access.isExpired}
+				/>
+			)}
 
 			{/* Suggested copy */}
 			{(scan.suggested_headline ||
@@ -292,14 +319,22 @@ export function ScanResultsClient({ scan }: { scan: Scan }) {
 			)}
 
 			{/* Test a rewrite against the live site before publishing */}
-			<RewriteTester
-				scanId={scan.id}
-				initial={{
-					headline: scan.suggested_headline ?? '',
-					subheadline: scan.suggested_subheadline ?? '',
-					cta: scan.suggested_cta ?? '',
-				}}
-			/>
+			{access.features.rewriteTest ? (
+				<RewriteTester
+					scanId={scan.id}
+					initial={{
+						headline: scan.suggested_headline ?? '',
+						subheadline: scan.suggested_subheadline ?? '',
+						cta: scan.suggested_cta ?? '',
+					}}
+				/>
+			) : (
+				<LockedFeature
+					title='Test your rewrite'
+					description='Score new headline, subheadline and button copy against what your site says today, before you publish.'
+					isExpired={access.isExpired}
+				/>
+			)}
 
 			{/* Action plan */}
 			{scan.action_plan?.length > 0 && (
