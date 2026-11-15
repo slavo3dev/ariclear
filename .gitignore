@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 google-tts-credentials.json
+
+# allow the template
+!.env.example
+
+# supabase CLI local state
+supabase/.temp/
