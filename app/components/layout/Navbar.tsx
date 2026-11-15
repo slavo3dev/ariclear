@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Button } from '@ariclear/components';
-import { usePreorder, useAuth, AuthModal } from '@ariclear/components';
+import { useAuth, AuthModal } from '@ariclear/components';
 import { useRouter } from 'next/navigation';
 import { getTierBadgeColor, getTierLabel } from '@/lib/plans';
 
@@ -65,7 +65,6 @@ function NavLink({
 }
 
 export function Navbar() {
-	const { open: openPreorderModal } = usePreorder();
 	const { user, loading, signOut } = useAuth();
 	const router = useRouter();
 	const pathname = usePathname();
@@ -159,9 +158,9 @@ export function Navbar() {
 		router.push('/');
 	};
 
-	const handleEarlyAccess = () => {
+	const handleSeePlans = () => {
 		closeMobile();
-		openPreorderModal();
+		router.push('/#pricing');
 	};
 
 	const isActive = (path: string) => pathname === path;
@@ -227,8 +226,8 @@ export function Navbar() {
 						<Button
 							className='px-4 py-1.5 text-xs'
 							type='button'
-							onClick={handleEarlyAccess}>
-							Get early access
+							onClick={handleSeePlans}>
+							See plans
 						</Button>
 
 						<a
@@ -541,8 +540,8 @@ export function Navbar() {
 									<Button
 										type='button'
 										className='w-full justify-center'
-										onClick={handleEarlyAccess}>
-										Get early access
+										onClick={handleSeePlans}>
+										See plans
 									</Button>
 								</div>
 

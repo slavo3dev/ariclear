@@ -14,18 +14,18 @@ const TIER_CONFIG = {
 		websites: '3',
 		maxWebsites: 3,
 		badge: 'Centurion · 3 Websites',
-		headline: 'Become a Centurion',
+		headline: 'Questions about Centurion?',
 		description:
-			"3 websites, unlimited scans, full reports and scan history, plus early access to the AI visibility check. We'll reach out within 24 hours.",
+			"Tell us about your sites and we'll reply within 24 hours. Ready now? Buy Centurion in the pricing section: one payment covers 6 months.",
 	},
 	starter: {
 		label: 'Gladiator Plan',
 		websites: '1',
 		maxWebsites: 1,
 		badge: 'Gladiator · 1 Website',
-		headline: 'Become a Gladiator',
+		headline: 'Questions about Gladiator?',
 		description:
-			"1 website, unlimited scans, full reports and scan history. We'll reach out within 24 hours.",
+			"Tell us about your site and we'll reply within 24 hours. Ready now? Buy Gladiator in the pricing section: one payment covers 6 months.",
 	},
 } as const;
 
@@ -87,7 +87,7 @@ export function PreorderForm({
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				if (res.status === 409 || data?.error?.includes('duplicate')) {
-					toast("You've already requested access 👀", { icon: 'ℹ️' });
+					toast("We already have your message 👀", { icon: 'ℹ️' });
 					onSuccess?.();
 					return;
 				}
@@ -102,7 +102,7 @@ export function PreorderForm({
 				setUrl('');
 				setNotes('');
 				toast.success(
-					"Request submitted! We'll reach out within 24 hours.",
+					"Thanks! We'll reply within 24 hours.",
 				);
 				onSuccess?.();
 			}, 800);
@@ -236,7 +236,7 @@ export function PreorderForm({
 				type='submit'
 				className='w-full justify-center'
 				disabled={loading}>
-				{loading ? 'Submitting...' : `Request ${config.label} access`}
+				{loading ? 'Sending...' : 'Send my question'}
 			</Button>
 
 			{/* Calendly */}
@@ -257,17 +257,18 @@ export function PreorderForm({
 			{/* Submitted */}
 			{submitted && (
 				<div className='rounded-xl bg-green-900/30 border border-green-700 px-3 py-2.5 text-[11px] text-cream-100'>
-					<p className='font-medium mb-0.5'>✅ Request submitted!</p>
+					<p className='font-medium mb-0.5'>✅ Message sent!</p>
 					<p className='text-choco-200'>
-						We'll reach out within 24 hours to set up your{' '}
-						{config.label} with {websites} website
-						{websites !== '1' ? 's' : ''}.
+						We'll reply within 24 hours about {config.label} for{' '}
+						{websites} website{websites !== '1' ? 's' : ''}.
 					</p>
 				</div>
 			)}
 
 			<p className='text-[10px] text-choco-400 text-center'>
-				No credit card required to get started.
+				<a href='/#pricing' className='underline hover:text-choco-200'>
+					See plans and prices
+				</a>
 			</p>
 		</form>
 	);

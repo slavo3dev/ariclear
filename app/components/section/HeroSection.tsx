@@ -46,7 +46,7 @@ export function HeroSection() {
 				<div className='flex-1 space-y-6'>
 					<p className='inline-flex items-center gap-2 rounded-full border border-choco-100 bg-cream-50 px-3 py-1 text-xs font-medium text-choco-700 shadow-sm'>
 						<span className='h-2 w-2 rounded-full bg-green-500' />
-						Early access · limited alpha
+						Free scan with a free account · no credit card
 					</p>
 
 					<h1 className='font-display text-4xl tracking-tight text-choco-900 sm:text-5xl lg:text-6xl'>
