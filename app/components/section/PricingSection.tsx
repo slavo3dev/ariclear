@@ -1,20 +1,41 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, PreorderForm } from '@ariclear/components';
+import {
+	AuthModal,
+	Button,
+	usePreorder,
+	useCheckout,
+} from '@ariclear/components';
+import { FREE_LIMITS, PAID_PLANS, type PaidTier } from '@/lib/entitlements';
 
-const plans = [
+const plans: {
+	id: PaidTier;
+	name: string;
+	badge: string;
+	price: string;
+	priceCaption: string;
+	monthlyEquiv: string;
+	description: string;
+	features: { text: string; included: boolean; highlight: boolean }[];
+	cta: string;
+	ctaSub: string;
+	tier: PaidTier;
+}[] = [
 	{
 		id: 'starter',
-		name: 'Gladiator',
+		name: PAID_PLANS.starter.label,
 		badge: 'Get started',
-		price: '$39',
+		price: `$${PAID_PLANS.starter.priceUsd}`,
 		priceCaption: 'one payment every 6 months',
 		monthlyEquiv: '$6.50',
 		description:
 			'Know exactly what visitors and AI understand about your website, and how to fix it.',
 		features: [
-			{ text: '1 website', included: true, highlight: false },
+			{
+				text: `${PAID_PLANS.starter.websites} website`,
+				included: true,
+				highlight: false,
+			},
 			{
 				text: 'Unlimited clarity scans',
 				included: true,
@@ -58,20 +79,24 @@ const plans = [
 			},
 		],
 		cta: 'Become a Gladiator',
-		ctaSub: 'One payment covers 6 months',
+		ctaSub: 'One payment covers 6 months · no auto-renewal',
 		tier: 'starter',
 	},
 	{
 		id: 'pro',
-		name: 'Centurion',
+		name: PAID_PLANS.pro.label,
 		badge: 'Most popular',
-		price: '$99',
+		price: `$${PAID_PLANS.pro.priceUsd}`,
 		priceCaption: 'one payment every 6 months',
 		monthlyEquiv: '$16.50',
 		description:
 			'For founders and teams actively improving their messaging.',
 		features: [
-			{ text: '3 websites', included: true, highlight: false },
+			{
+				text: `${PAID_PLANS.pro.websites} websites`,
+				included: true,
+				highlight: false,
+			},
 			{
 				text: 'Unlimited clarity scans',
 				included: true,
@@ -120,19 +145,14 @@ const plans = [
 			},
 		],
 		cta: 'Become a Centurion',
-		ctaSub: 'One payment covers 6 months',
+		ctaSub: 'One payment covers 6 months · no auto-renewal',
 		tier: 'pro',
 	},
 ];
 
 export function PricingSection() {
-	const [showPreorderModal, setShowPreorderModal] = useState(false);
-	const [selectedTier, setSelectedTier] = useState<string | null>(null);
-
-	const handleSelect = (plan: (typeof plans)[number]) => {
-		setSelectedTier(plan.tier);
-		setShowPreorderModal(true);
-	};
+	const { start, pending, authOpen, closeAuth } = useCheckout();
+	const { open: openContact } = usePreorder();
 
 	return (
 		<section className='py-24 bg-white' id='pricing'>
@@ -279,7 +299,8 @@ export function PricingSection() {
 								<div>
 									<Button
 										type='button'
-										onClick={() => handleSelect(plan)}
+										onClick={() => start(plan.tier)}
+										disabled={pending !== null}
 										className={`w-full justify-center font-semibold py-3 rounded-xl transition-all duration-200 ${
 											isStarter
 												? 'bg-choco-900 text-cream-50 hover:bg-choco-800'
@@ -287,7 +308,9 @@ export function PricingSection() {
 													? 'bg-amber-400 text-choco-900 hover:bg-amber-300 shadow-lg hover:shadow-xl'
 													: 'bg-choco-900 text-cream-50 hover:bg-choco-800'
 										}`}>
-										{plan.cta}
+										{pending === plan.tier
+											? 'Opening checkout…'
+											: plan.cta}
 									</Button>
 									<p
 										className={`text-xs text-center mt-2 ${
@@ -304,52 +327,45 @@ export function PricingSection() {
 				</div>
 
 				{/* Comparison note */}
-				<div className='mt-12 rounded-2xl bg-cream-50 border border-choco-100 p-6 text-center'>
+				<div className='mt-12 rounded-2xl bg-cream-50 border border-choco-100 p-6 text-center space-y-2'>
 					<p className='text-sm text-choco-700'>
 						<span className='font-semibold text-choco-900'>
-							All plans
+							Free account:
 						</span>{' '}
-						include unlimited scans, human clarity analysis, and
-						AI-SEO scoring.{' '}
+						{FREE_LIMITS.lifetimeScans} full scan of{' '}
+						{FREE_LIMITS.websites} website, with human and AI scores
+						and a suggested rewrite. No credit card.
+					</p>
+					<p className='text-sm text-choco-700'>
 						<span className='font-semibold text-choco-900'>
-							No per-scan fees. Ever.
-						</span>
+							Paid plans
+						</span>{' '}
+						add re-scans, the rewrite tester, technical checks and
+						PDF reports. One payment, no subscription.{' '}
+						<a
+							href='/refund'
+							className='underline hover:text-choco-900'>
+							Refund policy
+						</a>
+						.
 					</p>
 				</div>
 
 				{/* Trust line */}
 				<p className='text-center text-sm text-choco-500 mt-8'>
-					Questions?{' '}
-					<a
-						href='mailto:slavo@slavo.io'
+					Questions before you buy?{' '}
+					<button
+						type='button'
+						onClick={openContact}
 						className='font-semibold text-choco-800 underline hover:text-choco-600 transition-colors'>
-						Email us
-					</a>{' '}
+						Talk to us
+					</button>{' '}
 					— we reply fast.
 				</p>
 			</div>
 
-			{/* Preorder Modal */}
-			{showPreorderModal && (
-				<div
-					className='fixed inset-0 z-50 flex items-center justify-center bg-choco-900/70 backdrop-blur-sm p-4'
-					onClick={() => setShowPreorderModal(false)}>
-					<div
-						className='relative max-w-lg w-full'
-						onClick={(e) => e.stopPropagation()}>
-						<button
-							onClick={() => setShowPreorderModal(false)}
-							className='absolute -top-3 -right-3 bg-choco-900 text-cream-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-choco-800 transition-all duration-300 shadow-lg z-10'
-							aria-label='Close modal'>
-							✕
-						</button>
-						<PreorderForm
-							tier={selectedTier}
-							onSuccess={() => setShowPreorderModal(false)}
-						/>
-					</div>
-				</div>
-			)}
+			<AuthModal open={authOpen} onClose={closeAuth} initialMode='signup' />
+
 		</section>
 	);
 }

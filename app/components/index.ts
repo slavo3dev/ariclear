@@ -8,3 +8,4 @@ export * from './Auth';
 export * from './ScanResultsEnhanced';
 export * from './Froms';
 export * from './DemoScanSection';
+export * from './billing';
