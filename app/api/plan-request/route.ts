@@ -1,60 +1,78 @@
-// app/api/plan-request/route.ts
+// POST /api/plan-request
+// "Questions about a plan?" contact form. Every request is kept as its own
+// row (INSERT, not upsert), so a second message from the same person is not
+// lost. plan_requests has RLS on and no policies: only the service role
+// writes or reads it.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
+import { clientIp, rateLimit } from '@/lib/security/rateLimit';
+import { isPaidTier, PAID_PLANS } from '@/lib/entitlements';
 
-function getServiceClient() {
-	const url = (process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL ?? '').replace(
-		/\/$/,
-		'',
-	);
-	const key = process.env.SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY;
-	if (!url || !key)
-		throw new Error('Missing SUPABASE_ARI_CLEAR_SERVICE_ROLE_KEY env var');
-	return createClient(url, key, {
-		auth: { autoRefreshToken: false, persistSession: false },
-	});
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function text(v: unknown, max: number): string | null {
+	if (typeof v !== 'string') return null;
+	const t = v.trim();
+	return t ? t.slice(0, max) : null;
 }
 
 export async function POST(req: NextRequest) {
-	try {
-		const body = await req.json();
-		const { email, phone, plan, websites, url, notes, sourceUrl } = body;
-
-		if (!email || !plan || !websites) {
-			return NextResponse.json(
-				{ error: 'Missing required fields: email, plan, websites' },
-				{ status: 400 },
-			);
-		}
-
-		if (!['starter', 'pro'].includes(plan)) {
-			return NextResponse.json(
-				{ error: 'Invalid plan. Must be starter or pro.' },
-				{ status: 400 },
-			);
-		}
-
-		const supabase = getServiceClient();
-
-		const { error } = await supabase.from('plan_requests').upsert(
-			{
-				email: email.trim().toLowerCase(),
-				phone: phone?.trim() || null,
-				plan,
-				websites: Number(websites),
-				url: url?.trim() || null,
-				notes: notes?.trim() || null,
-				source_url: sourceUrl || null,
-			},
-			{
-				onConflict: 'email,plan',
-				ignoreDuplicates: false,
-			},
+	const limit = rateLimit(`plan-request:${clientIp(req)}`, 5, 10 * 60_000);
+	if (!limit.ok) {
+		return NextResponse.json(
+			{ error: 'Too many requests. Please try again later.' },
+			{ status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } },
 		);
+	}
+
+	const body = await req.json().catch(() => null);
+	if (!body || typeof body !== 'object') {
+		return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+	}
+
+	const email = text(body.email, 254)?.toLowerCase() ?? null;
+	const plan = body.plan;
+	const websites = Number(body.websites);
+
+	if (!email || !EMAIL_RE.test(email)) {
+		return NextResponse.json(
+			{ error: 'Please enter a valid email address.' },
+			{ status: 400 },
+		);
+	}
+	if (!isPaidTier(plan)) {
+		return NextResponse.json(
+			{ error: 'Invalid plan. Must be starter or pro.' },
+			{ status: 400 },
+		);
+	}
+	if (
+		!Number.isInteger(websites) ||
+		websites < 1 ||
+		websites > PAID_PLANS[plan].websites
+	) {
+		return NextResponse.json(
+			{ error: 'Invalid number of websites.' },
+			{ status: 400 },
+		);
+	}
+
+	try {
+		const { error } = await supabaseAriClearAdmin()
+			.from('plan_requests')
+			.insert({
+				email,
+				phone: text(body.phone, 40),
+				plan,
+				websites,
+				url: text(body.url, 500),
+				notes: text(body.notes, 2000),
+				source_url: text(body.sourceUrl, 500),
+			});
 
 		if (error) {
-			console.error('[plan-request] insert error:', error);
+			console.error('[plan-request] insert failed:', error.code ?? 'unknown');
 			return NextResponse.json(
 				{ error: 'Failed to save request' },
 				{ status: 500 },
@@ -62,8 +80,8 @@ export async function POST(req: NextRequest) {
 		}
 
 		return NextResponse.json({ success: true }, { status: 201 });
-	} catch (err) {
-		console.error('[plan-request] unexpected error:', err);
+	} catch {
+		console.error('[plan-request] unexpected failure');
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },
