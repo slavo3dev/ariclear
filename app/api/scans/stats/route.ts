@@ -1,5 +1,8 @@
 import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { createLogger, errorCode } from '@/lib/logger';
+
+const log = createLogger('scans/stats');
 
 // GET /api/scans/stats - Get statistics for the authenticated user
 export async function GET(request: NextRequest) {
@@ -26,7 +29,7 @@ export async function GET(request: NextRequest) {
 			.eq('user_id', user.id);
 
 		if (error) {
-			console.error('Error fetching scans:', error);
+			log.error('list failed', { code: error.code ?? 'unknown' });
 			return NextResponse.json(
 				{ error: 'Failed to fetch scans' },
 				{ status: 500 },
@@ -75,7 +78,7 @@ export async function GET(request: NextRequest) {
 			},
 		});
 	} catch (error) {
-		console.error('Server error:', error);
+		log.error('failed', { code: errorCode(error) });
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },

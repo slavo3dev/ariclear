@@ -17,6 +17,9 @@ import type Stripe from 'stripe';
 import { stripe } from '@/lib/billing/stripe';
 import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
 import { isPaidTier, PAID_PLANS, PLAN_TERM_MONTHS } from '@/lib/entitlements';
+import { createLogger, errorCode } from '@/lib/logger';
+
+const log = createLogger('billing/webhook');
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,7 +46,7 @@ async function applyCheckoutSession(
 
 	if (!userId || !UUID_RE.test(userId) || !isPaidTier(tier)) {
 		// Not one of ours (or created by hand in the dashboard). Do not retry.
-		console.warn('[billing/webhook] session without valid metadata:', event.id);
+		log.warn('session without valid metadata', { event: event.id });
 		return NextResponse.json({ received: true });
 	}
 
@@ -62,12 +65,12 @@ async function applyCheckoutSession(
 	});
 
 	if (error) {
-		console.error('[billing/webhook] apply_purchase failed:', error.code ?? 'unknown', event.id);
+		log.error('apply_purchase failed', { code: error.code ?? 'unknown', event: event.id });
 		return NextResponse.json({ error: 'Temporary failure' }, { status: 500 });
 	}
 
 	if (data === 'needs_review') {
-		console.warn('[billing/webhook] purchase needs manual review:', event.id);
+		log.warn('purchase needs manual review', { event: event.id });
 	}
 
 	return NextResponse.json({ received: true, result: data });
@@ -82,7 +85,7 @@ async function revokeRefundedCharge(
 
 	if (!charge.refunded) {
 		// Partial refund: the plan stays. Handle by hand if needed.
-		console.warn('[billing/webhook] partial refund, plan unchanged:', event.id);
+		log.warn('partial refund, plan unchanged', { event: event.id });
 		return NextResponse.json({ received: true });
 	}
 
@@ -93,11 +96,11 @@ async function revokeRefundedCharge(
 	});
 
 	if (error) {
-		console.error('[billing/webhook] revoke_purchase failed:', error.code ?? 'unknown', event.id);
+		log.error('revoke_purchase failed', { code: error.code ?? 'unknown', event: event.id });
 		return NextResponse.json({ error: 'Temporary failure' }, { status: 500 });
 	}
 	if (data === 'needs_review') {
-		console.warn('[billing/webhook] refund needs manual review:', event.id);
+		log.warn('refund needs manual review', { event: event.id });
 	}
 	return NextResponse.json({ received: true, result: data });
 }
@@ -128,7 +131,7 @@ export async function POST(req: NextRequest) {
 					event.data.object as Stripe.Checkout.Session,
 				);
 			case 'checkout.session.async_payment_failed':
-				console.warn('[billing/webhook] async payment failed:', event.id);
+				log.warn('async payment failed', { event: event.id });
 				return NextResponse.json({ received: true });
 			case 'charge.refunded':
 				return await revokeRefundedCharge(
@@ -138,8 +141,8 @@ export async function POST(req: NextRequest) {
 			default:
 				return NextResponse.json({ received: true });
 		}
-	} catch {
-		console.error('[billing/webhook] unexpected failure:', event.id);
+	} catch (err) {
+		log.error('unexpected failure', { code: errorCode(err), event: event.id });
 		return NextResponse.json({ error: 'Temporary failure' }, { status: 500 });
 	}
 }

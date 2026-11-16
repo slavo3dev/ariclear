@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import { use } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { createLogger, errorCode } from "@/lib/logger";
 import { 
   Navbar, 
   SiteFooter, 
   useAuth,
   ScanResultsEnhanced 
 } from "@ariclear/components";
+
+const log = createLogger("history/id");
 
 // In Next.js 15, params is a Promise
 export default function ScanDetailPage({ 
@@ -43,8 +46,6 @@ export default function ScanDetailPage({
     try {
       setLoading(true);
       
-      console.log('Fetching scan with ID:', id); // Debug log
-      
       const res = await fetch(`/api/scans/${id}`);
       
       if (!res.ok) {
@@ -54,7 +55,7 @@ export default function ScanDetailPage({
       const data = await res.json();
       setScan(data.scan);
     } catch (error) {
-      console.error('Error fetching scan:', error);
+      log.warn('could not load scan', { code: errorCode(error) });
       toast.error('Scan not found');
       router.push('/history');
     } finally {

@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Navbar, SiteFooter } from "@ariclear/components";
 import { getTierBadgeColor, getTierLabel } from "@/lib/plans";
+import { createLogger, errorCode } from "@/lib/logger";
+
+const log = createLogger("dashboard");
 
 type SubscriptionInfo = {
   tier: string;
@@ -61,7 +64,7 @@ export default function DashboardPage() {
           setRecentScans(scansData.scans || []);
         }
       } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+        log.warn("could not load dashboard data", { code: errorCode(error) });
       } finally {
         setLoadingData(false);
       }
@@ -319,8 +322,7 @@ export default function DashboardPage() {
             type="button"
             className="bg-white rounded-xl shadow-soft p-6 border border-choco-100 hover:shadow-md transition group text-left"
             onClick={() => {
-              // You can add settings/profile functionality here
-              console.log("Settings clicked");
+              // Settings page not built yet.
             }}
           >
             <div className="text-2xl mb-2">⚙️</div>

@@ -8,6 +8,9 @@ import { Button } from '@ariclear/components';
 import { useAuth, AuthModal } from '@ariclear/components';
 import { useRouter } from 'next/navigation';
 import { getTierBadgeColor, getTierLabel } from '@/lib/plans';
+import { createLogger, errorCode } from '@/lib/logger';
+
+const log = createLogger('navbar');
 
 const CALENDLY_URL = 'https://calendly.com/slavo3/30min';
 
@@ -122,7 +125,7 @@ export function Navbar() {
 						if (isMounted) setSubscription(data);
 					});
 			} catch (error) {
-				console.error('Error fetching subscription:', error);
+				log.warn('could not load subscription', { code: errorCode(error) });
 			}
 		};
 		fetchSubscription();

@@ -6,12 +6,4 @@ export const api = axios.create({
   withCredentials: true, // 🔥 REQUIRED for auth cookies
 });
 
-api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      console.warn("Unauthorized");
-    }
-    return Promise.reject(err);
-  }
-);
+// Callers handle 401s themselves (sign-in modal, redirects).
