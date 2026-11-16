@@ -7,7 +7,7 @@
 // plan limits.
 
 import OpenAI from 'openai';
-import { extractPageContent } from '@/lib/analysis/extractPage';
+import { extractPageContent, unscorableReason } from '@/lib/analysis/extractPage';
 import { fence, UNTRUSTED_RULE } from '@/lib/analysis/untrusted';
 import {
 	isAnalyzeReport,
@@ -16,7 +16,7 @@ import {
 	type AnalyzeModelReport,
 } from '@/lib/analysis/scanRow';
 import { runTechnicalChecks } from '@/lib/analysis/technicalChecks';
-import { describeFetchFailure } from '@/lib/analysis/fetchFailure';
+import { describeFetchFailure, describeUnscorablePage } from '@/lib/analysis/fetchFailure';
 import { safeFetch, UnsafeUrlError } from '@/lib/security/safeFetch';
 import { createLogger, errorCode } from '@/lib/logger';
 
@@ -195,7 +195,9 @@ async function technicalScore(url: string): Promise<number | null> {
 
 /**
  * Fetch a page the way a scan does (SSRF-safe, same User-Agent).
- * Throws ScanError with a user-safe message.
+ * Throws ScanError with a user-safe message, also when the page loaded but
+ * cannot be scored (a bot-check page, or no readable text), so such a page
+ * is never scored, saved or counted against the plan.
  */
 export async function fetchPage(url: string): Promise<string> {
 	try {
@@ -207,6 +209,10 @@ export async function fetchPage(url: string): Promise<string> {
 		});
 		if (!res.ok) {
 			throw new ScanError(describeFetchFailure(res.status).message, 'fetch', 400);
+		}
+		const reason = unscorableReason(res.body, extractPageContent(res.body));
+		if (reason) {
+			throw new ScanError(describeUnscorablePage(reason).message, 'fetch', 422);
 		}
 		return res.body;
 	} catch (e) {

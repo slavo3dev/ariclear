@@ -10,9 +10,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { safeFetch, UnsafeUrlError } from '@/lib/security/safeFetch';
-import { describeFetchFailure } from '@/lib/analysis/fetchFailure';
+import { describeFetchFailure, describeUnscorablePage } from '@/lib/analysis/fetchFailure';
 import { clientIp, rateLimitAll } from '@/lib/security/rateLimit';
-import { extractPageContent, pageAsText } from '@/lib/analysis/extractPage';
+import { extractPageContent, pageAsText, unscorableReason } from '@/lib/analysis/extractPage';
 import { fence, UNTRUSTED_RULE } from '@/lib/analysis/untrusted';
 import { clampScore } from '@/lib/analysis/scanRow';
 import { createLogger, errorCode } from '@/lib/logger';
@@ -176,11 +176,13 @@ export async function POST(req: NextRequest) {
 
 	// Keep token cost low for the demo.
 	const page = extractPageContent(html, { maxBodyChars: 4000 });
-	if (page.bodySnippet.length < 50 && !page.title && !page.h1) {
+	const unscorable = unscorableReason(html, page);
+	if (unscorable) {
+		const failure = describeUnscorablePage(unscorable);
 		return NextResponse.json(
 			{
-				error: 'Not enough text content to analyze',
-				errorCode: 'FETCH_ERROR',
+				error: failure.short,
+				errorCode: unscorable === 'challenge' ? 'SITE_BLOCKED' : 'FETCH_ERROR',
 			},
 			{ status: 422 },
 		);

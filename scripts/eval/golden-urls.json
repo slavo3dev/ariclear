@@ -27,7 +27,7 @@
 		{ "url": "https://casper.com", "category": "ecommerce", "expect": "mid", "note": "Mattresses, promo-led hero" },
 
 		{ "url": "https://www.wikipedia.org", "category": "content", "expect": "mid", "note": "Portal page, no marketing copy" },
-		{ "url": "https://www.khanacademy.org", "category": "nonprofit", "expect": "high", "note": "Free learning, clear audience" },
+		{ "url": "https://www.khanacademy.org", "category": "edge-blocked", "expect": "high", "note": "Serves a bot check to scanners: must be refused, never scored (was scored 0 before the fix)" },
 		{ "url": "https://www.bbc.com", "category": "content", "expect": "mid", "note": "News homepage, changes hourly" },
 
 		{ "url": "https://vercel.com", "category": "devtools", "expect": "high", "note": "Developer platform" },

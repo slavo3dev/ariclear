@@ -49,3 +49,26 @@ export function describeFetchFailure(status: number): FetchFailure {
 		message: `Couldn't load that page (HTTP ${status}). Try your homepage.`,
 	};
 }
+
+/** A page that loaded (HTTP 200) but cannot be scored. See unscorableReason(). */
+export function describeUnscorablePage(reason: 'challenge' | 'empty'): FetchFailure {
+	if (reason === 'challenge') {
+		return {
+			kind: 'blocked',
+			short: 'Your site showed our scanner a bot check. AI crawlers may see it too.',
+			message:
+				'Your site showed our scanner a bot check ("verify you are human") instead of the page. ' +
+				'AI crawlers like GPTBot and ClaudeBot usually get the same check, which keeps your site ' +
+				'out of AI answers. Allow "AriClearBot" in your bot protection settings (for example ' +
+				'Cloudflare Bot Fight Mode), then scan again.',
+		};
+	}
+	return {
+		kind: 'other',
+		short: "We couldn't find text on that page to analyze.",
+		message:
+			"We couldn't find enough text on that page to analyze. If the page is built entirely with " +
+			'JavaScript, search engines and AI crawlers may also see it as empty. Try another page, or ' +
+			'make sure the main content is in the HTML the server sends.',
+	};
+}
