@@ -3,12 +3,37 @@ import "./globals.css";
 import { PreorderProvider, AuthProvider} from "@ariclear/components";
 import { Toaster } from "react-hot-toast";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+  jsonLdScript,
+  siteJsonLd,
+} from "@/lib/site";
 
 
 export const metadata: Metadata = {
-  title: "AriClear — Do humans and AI understand your website?",
-  description:
-    "AriClear analyzes your homepage like a first-time visitor and like an AI model, showing whether humans and AI understand what your website does.",
+  // Makes relative URLs (canonical, og:image) absolute.
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  // Pages inherit these; app/opengraph-image.tsx and app/twitter-image.tsx
+  // supply the image for every page.
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "en_US",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
   icons: {
     icon: "/branding/arilogofavicon.png",
     shortcut: "/branding/arilogofavicon.png",
@@ -26,6 +51,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-cream-50 text-choco-900 antialiased">
+        <script
+          type="application/ld+json"
+          // Built from the plan constants in lib/entitlements; no user input.
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(siteJsonLd()) }}
+        />
         <AuthProvider>
           <PreorderProvider>
             <Toaster

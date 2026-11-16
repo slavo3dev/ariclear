@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { pageOpenGraph } from '@/lib/site';
 import Link from 'next/link';
 import { LegalPage } from '@/app/components/legal/LegalPage';
 import { LEGAL } from '@/lib/legal';
@@ -7,6 +8,11 @@ import { FREE_LIMITS, PAID_PLANS, PLAN_TERM_MONTHS } from '@/lib/entitlements';
 export const metadata: Metadata = {
 	title: 'Terms of Service — AriClear',
 	description: 'The terms that apply when you use AriClear.',
+	openGraph: pageOpenGraph(
+		'Terms of Service — AriClear',
+		'The terms that apply when you use AriClear.',
+		'/terms',
+	),
 	alternates: { canonical: '/terms' },
 };
 

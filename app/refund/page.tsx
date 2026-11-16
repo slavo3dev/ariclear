@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { pageOpenGraph } from '@/lib/site';
 import { LegalPage } from '@/app/components/legal/LegalPage';
 import { LEGAL } from '@/lib/legal';
 import { PLAN_TERM_MONTHS } from '@/lib/entitlements';
@@ -6,6 +7,11 @@ import { PLAN_TERM_MONTHS } from '@/lib/entitlements';
 export const metadata: Metadata = {
 	title: 'Refund Policy — AriClear',
 	description: 'How refunds work for AriClear plans.',
+	openGraph: pageOpenGraph(
+		'Refund Policy — AriClear',
+		'How refunds work for AriClear plans.',
+		'/refund',
+	),
 	alternates: { canonical: '/refund' },
 };
 

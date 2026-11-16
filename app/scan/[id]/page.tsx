@@ -2,12 +2,20 @@
 // Server component — fetches the scan on the server.
 // Passes both to ScanResultsClient as props.
 
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Navbar, SiteFooter } from '@ariclear/components';
 import { ScanResultsClient, type ScanAccess } from './ScanResultsClient';
 import { getEntitlements } from '@/lib/entitlements.server';
+
+// A user's private report: never indexed, no canonical inherited from /scan.
+export const metadata: Metadata = {
+	title: 'Scan report — AriClear',
+	robots: { index: false, follow: false },
+	alternates: { canonical: null },
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

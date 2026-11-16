@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
+import { pageOpenGraph } from '@/lib/site';
 import { LegalPage } from '@/app/components/legal/LegalPage';
 import { LEGAL } from '@/lib/legal';
 
 export const metadata: Metadata = {
 	title: 'Privacy Policy — AriClear',
 	description: 'What data AriClear collects, why, and who processes it.',
+	openGraph: pageOpenGraph(
+		'Privacy Policy — AriClear',
+		'What data AriClear collects, why, and who processes it.',
+		'/privacy',
+	),
 	alternates: { canonical: '/privacy' },
 };
 

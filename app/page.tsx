@@ -6,7 +6,12 @@ import {
 	WhoItsForSection,
 	PricingSection,
 } from '@ariclear/components';
+import type { Metadata } from 'next';
 import { HomePageClient } from './HomePageClient';
+
+export const metadata: Metadata = {
+	alternates: { canonical: '/' },
+};
 
 export default function HomePage() {
 	return (
