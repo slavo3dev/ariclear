@@ -5,9 +5,15 @@
 import { FREE_LIMITS, PAID_PLANS, PLAN_TERM_MONTHS } from '@/lib/entitlements';
 import { LEGAL } from '@/lib/legal';
 
-/** Canonical origin, no trailing slash. */
+/**
+ * Canonical origin, no trailing slash. NEXT_PUBLIC_APP_URL wins; otherwise
+ * NEXT_PUBLIC_SITE_URL (already set in Vercel for auth emails); otherwise
+ * the production domain.
+ */
 export const SITE_URL = (
-	process.env.NEXT_PUBLIC_APP_URL || 'https://ariclear.com'
+	process.env.NEXT_PUBLIC_APP_URL ||
+	process.env.NEXT_PUBLIC_SITE_URL ||
+	'https://www.ariclear.com'
 ).replace(/\/$/, '');
 
 export const SITE_NAME = 'AriClear';

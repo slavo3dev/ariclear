@@ -2,6 +2,7 @@
 // SERVER ONLY. Stripe client and the env-driven price map.
 // Plans are one-time payments (Checkout mode "payment"), not subscriptions.
 
+import { SITE_URL } from '@/lib/site';
 import Stripe from 'stripe';
 import type { PaidTier } from '@/lib/entitlements';
 
@@ -27,8 +28,7 @@ export function priceIdFor(tier: PaidTier): string {
 }
 
 /** Public base URL, used for Checkout success/cancel redirects. */
+/** Base URL for Checkout redirects: the same origin as the rest of the site. */
 export function appUrl(): string {
-	const url = process.env.NEXT_PUBLIC_APP_URL;
-	if (!url) throw new Error('Missing NEXT_PUBLIC_APP_URL');
-	return url.replace(/\/$/, '');
+	return SITE_URL;
 }
