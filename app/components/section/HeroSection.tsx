@@ -49,12 +49,13 @@ export function HeroSection() {
 						Free scan with a free account · no credit card
 					</p>
 
-					<h1 className='font-display text-4xl tracking-tight text-choco-900 sm:text-5xl lg:text-6xl'>
+					{/* h2: the page's single H1 is the demo heading at the top. */}
+					<h2 className='font-display text-4xl tracking-tight text-choco-900 sm:text-5xl lg:text-6xl'>
 						Your website has 8 seconds.{' '}
 						<span className='text-choco-500'>
 							Most fail in the first two.
 						</span>
-					</h1>
+					</h2>
 
 					{/* Science stat pills */}
 					<div className='flex flex-wrap gap-3'>
