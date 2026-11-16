@@ -291,7 +291,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <Link
             href="/scan"
             className="bg-white rounded-xl shadow-soft p-6 border border-choco-100 hover:shadow-md transition group"
@@ -301,7 +301,7 @@ export default function DashboardPage() {
               New Scan
             </h3>
             <p className="text-sm text-choco-600 mt-1">
-              Scan a website for accessibility issues
+              See how visitors and AI read your site
             </p>
           </Link>
 
@@ -318,21 +318,7 @@ export default function DashboardPage() {
             </p>
           </Link>
 
-          <button
-            type="button"
-            className="bg-white rounded-xl shadow-soft p-6 border border-choco-100 hover:shadow-md transition group text-left"
-            onClick={() => {
-              // Settings page not built yet.
-            }}
-          >
-            <div className="text-2xl mb-2">⚙️</div>
-            <h3 className="font-semibold text-choco-900 group-hover:text-choco-700 transition">
-              Settings
-            </h3>
-            <p className="text-sm text-choco-600 mt-1">
-              Manage your account preferences
-            </p>
-          </button>
+          {/* Settings card hidden until there is a settings page. */}
         </div>
       </div>
       <SiteFooter />
