@@ -1,287 +1,108 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // POST /api/analyze
 // Runs a full scan for a signed-in user and SAVES it. The report stored in
-// `scans` is the one built here from the model output; the browser never
-// sends scores. Claiming the scan (plan limits) and saving it happen in one
-// database transaction (record_scan()).
+// `scans` is the one built on the server (lib/analysis/runScan); the browser
+// never sends scores. Claiming the scan (plan limits) and saving it happen in
+// one database transaction (record_scan()).
 
-import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { extractPageContent } from "@/lib/analysis/extractPage";
-import { fence, UNTRUSTED_RULE } from "@/lib/analysis/untrusted";
+import { NextResponse } from 'next/server';
+import { runScan, ScanError } from '@/lib/analysis/runScan';
+import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
+import { rateLimit } from '@/lib/security/rateLimit';
+import { claimScanLimits, scanDenial } from '@/lib/entitlements';
 import {
-  isAnalyzeReport,
-  sanitizeReport,
-  scanRowFromReport,
-} from "@/lib/analysis/scanRow";
-import { supabaseAriClearServer } from "@/lib/supabase/auth/server";
-import { safeFetch, UnsafeUrlError } from "@/lib/security/safeFetch";
-import { rateLimit } from "@/lib/security/rateLimit";
-import { claimScanLimits, scanDenial } from "@/lib/entitlements";
-import {
-  getEntitlements,
-  recordScan,
-  EntitlementsUnavailableError,
-} from "@/lib/entitlements.server";
-import { createLogger, errorCode } from "@/lib/logger";
-import { normalizeDomain } from "@/lib/domain";
+	getEntitlements,
+	recordScan,
+	EntitlementsUnavailableError,
+} from '@/lib/entitlements.server';
+import { createLogger, errorCode } from '@/lib/logger';
+import { normalizeDomain } from '@/lib/domain';
 
-export const runtime = "nodejs";
+export const runtime = 'nodejs';
 
-const log = createLogger("analyze");
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const log = createLogger('analyze');
 
 function isValidHttpUrl(input: string) {
-  try {
-    const u = new URL(input);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
+	try {
+		const u = new URL(input);
+		return u.protocol === 'http:' || u.protocol === 'https:';
+	} catch {
+		return false;
+	}
 }
 
 export async function POST(req: Request) {
-  try {
-    // Auth: every scan costs an LLM call, so it requires a signed-in user.
-    const supabase = await supabaseAriClearServer();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+	try {
+		// Auth: every scan costs an LLM call, so it requires a signed-in user.
+		const supabase = await supabaseAriClearServer();
+		const {
+			data: { user },
+			error: authError,
+		} = await supabase.auth.getUser();
+		if (authError || !user) {
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+		}
 
-    const limit = await rateLimit(`analyze:${user.id}`, 10, 60_000);
-    if (!limit.ok) {
-      return NextResponse.json(
-        { error: "Too many scans. Please wait a moment.", rateLimited: true },
-        { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } }
-      );
-    }
+		const limit = await rateLimit(`analyze:${user.id}`, 10, 60_000);
+		if (!limit.ok) {
+			return NextResponse.json(
+				{ error: 'Too many scans. Please wait a moment.', rateLimited: true },
+				{ status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } },
+			);
+		}
 
-    const { url } = ((await req.json().catch(() => ({}))) ?? {}) as {
-      url?: string;
-    };
+		const { url } = ((await req.json().catch(() => ({}))) ?? {}) as {
+			url?: string;
+		};
+		if (!url || !isValidHttpUrl(url)) {
+			return NextResponse.json(
+				{ error: 'Please provide a valid http(s) URL.' },
+				{ status: 400 },
+			);
+		}
 
-    if (!url || !isValidHttpUrl(url)) {
-      return NextResponse.json(
-        { error: "Please provide a valid http(s) URL." },
-        { status: 400 }
-      );
-    }
+		// www.example.com and example.com are the same site.
+		const domain = normalizeDomain(url);
 
-    // www.example.com and example.com are the same site.
-    const domain = normalizeDomain(url);
+		// Refuse before spending a model call. record_scan() below is the
+		// real, atomic gate.
+		const ent = await getEntitlements(user.id);
+		const denied = scanDenial(ent, domain);
+		if (denied) return NextResponse.json(denied, { status: 403 });
 
-    // Entitlements: refuse before spending a model call. The atomic claim
-    // after the model call is the real gate (see claimScan below).
-    const ent = await getEntitlements(user.id);
-    const denied = scanDenial(ent, domain);
-    if (denied) {
-      return NextResponse.json(denied, { status: 403 });
-    }
+		const scan = await runScan(url);
 
-    // Fetch the page
-    let html: string;
-    try {
-      const res = await safeFetch(url, {
-        headers: {
-          "User-Agent": "AriClearBot/0.1 (+https://ariclear.com)",
-          Accept: "text/html",
-        },
-      });
-      if (!res.ok) {
-        return NextResponse.json(
-          { error: `Failed to fetch URL (status ${res.status}).` },
-          { status: 400 }
-        );
-      }
-      html = res.body;
-    } catch (e) {
-      if (e instanceof UnsafeUrlError) {
-        return NextResponse.json({ error: e.message }, { status: 400 });
-      }
-      return NextResponse.json(
-        { error: "Could not reach that URL." },
-        { status: 400 }
-      );
-    }
-    const extracted = extractPageContent(html);
+		// Count the scan, reserve the site slot and save the report atomically.
+		// Parallel requests that all passed the pre-check stop here; only the
+		// allowed number of them are saved and returned.
+		const saved = await recordScan(user.id, domain, url, claimScanLimits(ent), scan.row);
+		if (saved.status !== 'ok') {
+			const fresh = await getEntitlements(user.id);
+			const denial = scanDenial(fresh, domain);
+			return NextResponse.json(
+				denial ?? { error: 'Could not reserve this scan. Please try again.' },
+				{ status: denial ? 403 : 409 },
+			);
+		}
 
-    const instructions = `
-You are AriClear, an expert website clarity and AI-SEO auditor. You are STRICT and HONEST — most websites score between 20–55 on clarity and AI-readability, not 70–90. Do not be generous. Call out real problems using the actual text from the page.
-
-Analyze the provided page content from two angles:
-1) A first-time human visitor who has ~5 seconds to decide if this site is for them.
-2) An AI indexer (like a search LLM or crawler) trying to classify the business and extract structured meaning.
-
-════════════════════════════════════════
-SCORING RULES — READ CAREFULLY
-════════════════════════════════════════
-
-CLARITY SCORE (human.clarityScore, 0–100):
-Ask: Within 5 seconds, can a total stranger answer ALL THREE questions — What does this site do? Who is it for? What should I do next?
-- Score 80–100: All three answered immediately in the hero. Concrete, specific, jargon-free.
-- Score 60–79: Answers exist but require reading or inference.
-- Score 40–59: One or two questions unanswered. Generic benefit claims without specifics.
-- Score 20–39: The site is mostly vague. Heavy buzzwords, no clear product/service, no clear audience.
-- Score 0–19: Completely unclear. A visitor cannot tell what this site is about.
-Deduct heavily for: buzzwords ("innovative", "empowering", "seamless", "cutting-edge", "transformative", "world-class", "solutions", "leverage"), missing WHO it serves, missing WHAT specifically it does, missing a clear call-to-action, abstract benefits with no concrete proof.
-
-AI-SEO SCORE (ai.aiSeoScore, 0–100):
-Ask: Can an AI crawler classify the exact business category, extract key entities (product name, industry, target customer, location if relevant, pricing signals, use cases), and determine the page's topical focus — without guessing?
-- Score 80–100: Business type, product, audience, and use cases are explicitly stated. Strong heading hierarchy. Meta description is accurate and specific. Structured data likely present.
-- Score 60–79: Most entities extractable, minor ambiguity.
-- Score 40–59: Business category guessable but vague. Key entities missing (e.g. no explicit target customer, no product name in meta, headings don't match content).
-- Score 20–39: AI must guess. Generic copy, flat heading structure, no entity anchors.
-- Score 0–19: AI cannot classify. No clear topic signal.
-Deduct for: missing or duplicate H1, meta description that doesn't match page content, no industry/category signal, no named product or service, missing location for local business, body text that repeats only generic claims.
-
-════════════════════════════════════════
-OUTPUT RULES
-════════════════════════════════════════
-
-- Be SPECIFIC: quote or directly reference actual text from the page when calling out issues.
-- Do NOT produce generic advice like "improve your CTA" — say exactly what the CTA says now, why it fails, and write a better version.
-- topIssues: focus on above-the-fold / hero section first. These block understanding immediately.
-- missingKeywords: these must be terms a real searcher would use for this type of business. No fluff.
-- nextSteps: must say WHERE on the page to make the change, not just "improve your headings."
-- suggestedHeadline/Subheadline/CTA: must be specific to this business, not templates. Write copy that would actually work.
-- aiSeoPrompt: write a ready-to-paste prompt the user can give to any AI to rewrite their hero section, meta description, and H1/H2s in a way that passes both human clarity and AI-readability tests.
-- confusions: write each confusion as a real visitor thought, e.g. "I can't tell if this is for individuals or businesses."
-
-${UNTRUSTED_RULE}
-The page arrives inside <untrusted_page> tags as JSON. Score what the page actually says.
-
-Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no backticks):
-
-{
-  "human": {
-    "clarityScore": number (0-100, be strict),
-    "whatItSeemsLike": string (what a confused first-timer would guess this site is about — may be wrong or vague),
-    "oneSentenceValueProp": string (what the value prop SHOULD be, based on what you can infer — make it sharp and specific),
-    "bestGuessAudience": string (who this seems targeted at, based on the content),
-    "confusions": string[] (3-6 real visitor questions or confusions, written as first-person visitor thoughts),
-    "topIssues": [
-      {
-        "issue": string (short name for the problem, referencing actual page text where possible),
-        "whyItHurts": string (specific explanation of the damage this causes to comprehension or trust),
-        "fix": string (exact fix with a rewritten example if applicable — not generic advice)
-      }
-    ] (3-6 items, sorted worst-first)
-  },
-  "ai": {
-    "aiSeoScore": number (0-100, be strict),
-    "aiSummary": string (how an AI would classify this business — be honest if it's unclear or mis-classifiable),
-    "indexerRead": string (what an AI indexer would extract as the page's main topic and entities — flag gaps),
-    "missingKeywords": string[] (5-10 specific search terms real users would type for this type of business, that are absent from the page),
-    "structuredDataSuggestions": string[] (2-5 specific technical/structural fixes: meta, OG, schema.org types, heading issues, etc.)
-  },
-  "copy": {
-    "suggestedHeadline": string (sharp, specific, benefit-led headline for this exact business — not a template),
-    "suggestedSubheadline": string (one sentence that fills in WHO it's for and WHAT they get),
-    "suggestedCTA": string (action-oriented, specific CTA text)
-  },
-  "plan": {
-    "nextSteps": [
-      {
-        "title": string (short action title),
-        "impact": "high"|"medium"|"low",
-        "effort": "low"|"medium"|"high",
-        "details": string (exactly what to change, where on the page, and what result to expect)
-      }
-    ] (3-7 items, sorted by impact/effort ratio — quick wins first)
-  },
-  "prompts": {
-    "aiSeoPrompt": string (a complete, ready-to-paste prompt for rewriting this site's hero, meta, and headings — include the actual current content as context so the rewrite is accurate)
-  }
-}
-`.trim();
-
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: instructions },
-        {
-          role: "user",
-          content: `URL: ${url}\n\n${fence("page", JSON.stringify(extracted, null, 2))}`,
-        },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.15,
-    });
-
-    const outputText = completion.choices[0]?.message?.content?.trim();
-    if (!outputText) {
-      return NextResponse.json({ error: "Empty AI response." }, { status: 500 });
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(outputText);
-    } catch {
-      log.error("model returned invalid JSON");
-      return NextResponse.json(
-        { error: "AI returned invalid JSON." },
-        { status: 500 }
-      );
-    }
-
-    if (!isAnalyzeReport(parsed)) {
-      log.error("model returned an unexpected shape");
-      return NextResponse.json(
-        { error: "AI returned unexpected response shape." },
-        { status: 500 }
-      );
-    }
-    const report = sanitizeReport(parsed);
-
-    // Count the scan, reserve the site slot and save the report atomically.
-    // Parallel requests that all passed the pre-check above stop here; only
-    // the allowed number of them are saved and returned.
-    const saved = await recordScan(
-      user.id,
-      domain,
-      url,
-      claimScanLimits(ent),
-      scanRowFromReport(report)
-    );
-    if (saved.status !== "ok") {
-      const fresh = await getEntitlements(user.id);
-      const denial = scanDenial(fresh, domain);
-      return NextResponse.json(
-        denial ?? {
-          error: "Could not reserve this scan. Please try again.",
-        },
-        { status: denial ? 403 : 409 }
-      );
-    }
-
-    return NextResponse.json({ ...report, scanId: saved.scanId });
-  } catch (err: any) {
-    if (err instanceof EntitlementsUnavailableError) {
-      log.error("plan or save unavailable");
-      return NextResponse.json(
-        { error: "Could not load your plan. Please try again." },
-        { status: 500 }
-      );
-    }
-    log.error("failed", { code: errorCode(err) });
-
-    if (err?.status === 429 || err?.code === "rate_limit_exceeded") {
-      return NextResponse.json(
-        {
-          error: "Rate limit reached. Please wait a moment and try again.",
-          rateLimited: true,
-        },
-        { status: 429 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Server error while analyzing the URL." },
-      { status: 500 }
-    );
-  }
+		return NextResponse.json({ ...scan.report, scanId: saved.scanId });
+	} catch (err) {
+		if (err instanceof ScanError) {
+			return NextResponse.json(
+				{ error: err.message, ...(err.kind === 'rate_limited' ? { rateLimited: true } : {}) },
+				{ status: err.status },
+			);
+		}
+		if (err instanceof EntitlementsUnavailableError) {
+			log.error('plan or save unavailable');
+			return NextResponse.json(
+				{ error: 'Could not load your plan. Please try again.' },
+				{ status: 500 },
+			);
+		}
+		log.error('failed', { code: errorCode(err) });
+		return NextResponse.json(
+			{ error: 'Server error while analyzing the URL.' },
+			{ status: 500 },
+		);
+	}
 }
