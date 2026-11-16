@@ -29,13 +29,13 @@ function client(): OpenAI {
 
 /** A failure with a message that is safe to show the user. */
 export class ScanError extends Error {
-	constructor(
-		message: string,
-		public readonly kind: 'url' | 'fetch' | 'model' | 'rate_limited',
-		public readonly status: number,
-	) {
+	readonly kind: 'url' | 'fetch' | 'model' | 'rate_limited';
+	readonly status: number;
+	constructor(message: string, kind: ScanError['kind'], status: number) {
 		super(message);
 		this.name = 'ScanError';
+		this.kind = kind;
+		this.status = status;
 	}
 }
 
@@ -137,7 +137,11 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
 }
 `.trim();
 
-async function modelReport(url: string, html: string): Promise<AnalyzeModelReport> {
+/**
+ * Score already-fetched HTML with the model. Exported for the eval
+ * (scripts/eval/run.ts), which scores the same HTML several times.
+ */
+export async function modelReport(url: string, html: string): Promise<AnalyzeModelReport> {
 	const extracted = extractPageContent(html);
 	let completion;
 	try {
@@ -188,9 +192,11 @@ async function technicalScore(url: string): Promise<number | null> {
 	}
 }
 
-/** Run a full scan of `url`. Throws ScanError with a user-safe message. */
-export async function runScan(url: string): Promise<ScanOutput> {
-	let html: string;
+/**
+ * Fetch a page the way a scan does (SSRF-safe, same User-Agent).
+ * Throws ScanError with a user-safe message.
+ */
+export async function fetchPage(url: string): Promise<string> {
 	try {
 		const res = await safeFetch(url, {
 			headers: {
@@ -201,13 +207,17 @@ export async function runScan(url: string): Promise<ScanOutput> {
 		if (!res.ok) {
 			throw new ScanError(`Failed to fetch URL (status ${res.status}).`, 'fetch', 400);
 		}
-		html = res.body;
+		return res.body;
 	} catch (e) {
 		if (e instanceof ScanError) throw e;
 		if (e instanceof UnsafeUrlError) throw new ScanError(e.message, 'url', 400);
 		throw new ScanError('Could not reach that URL.', 'fetch', 400);
 	}
+}
 
+/** Run a full scan of `url`. Throws ScanError with a user-safe message. */
+export async function runScan(url: string): Promise<ScanOutput> {
+	const html = await fetchPage(url);
 	const [report, tech] = await Promise.all([modelReport(url, html), technicalScore(url)]);
 	return {
 		report,
