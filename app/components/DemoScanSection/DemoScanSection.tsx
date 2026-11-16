@@ -4,14 +4,20 @@ import { useState, useRef } from 'react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+// Mirrors the /api/demo-scan response: only what this card shows.
+type DemoReadout = {
+	score: number;
+	verdict: string;
+	read: string; // one sentence
+};
+
 type DemoResult = {
 	domain: string;
 	overallScore: number;
-	humanScore: number;
-	aiScore: number;
-	verdict: string; // short punchy verdict
-	topIssues: string[]; // 2 real issues shown
-	hiddenIssueCount: number; // how many more are hidden
+	verdict: string;
+	human: DemoReadout;
+	ai: DemoReadout;
+	topIssues: string[];
 };
 
 type ScanState = 'idle' | 'loading' | 'result' | 'error';
@@ -32,31 +38,25 @@ function normalizeUrl(raw: string): string {
 	return trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
 }
 
-function getDomain(url: string): string {
-	try {
-		return new URL(url).hostname.replace('www.', '');
-	} catch {
-		return url;
-	}
-}
-
 // ─── Score Ring ───────────────────────────────────────────────────────────────
+
+function scoreColor(score: number): string {
+	return score >= 70 ? '#5a8a5a' : score >= 45 ? '#c8832a' : '#b84c4c';
+}
 
 function ScoreRing({
 	score,
 	label,
 	size = 80,
-	blurred = false,
 }: {
 	score: number;
 	label: string;
 	size?: number;
-	blurred?: boolean;
 }) {
 	const r = (size - 10) / 2;
 	const circ = 2 * Math.PI * r;
-	const fill = blurred ? 0 : (score / 100) * circ;
-	const color = score >= 70 ? '#5a8a5a' : score >= 45 ? '#c8832a' : '#b84c4c';
+	const fill = (score / 100) * circ;
+	const color = scoreColor(score);
 
 	return (
 		<div className='flex flex-col items-center gap-1'>
@@ -65,7 +65,8 @@ function ScoreRing({
 					width={size}
 					height={size}
 					viewBox={`0 0 ${size} ${size}`}
-					style={{ transform: 'rotate(-90deg)' }}>
+					style={{ transform: 'rotate(-90deg)' }}
+					aria-hidden>
 					<circle
 						cx={size / 2}
 						cy={size / 2}
@@ -79,7 +80,7 @@ function ScoreRing({
 						cy={size / 2}
 						r={r}
 						fill='none'
-						stroke={blurred ? '#c8b89a' : color}
+						stroke={color}
 						strokeWidth={5}
 						strokeDasharray={circ}
 						strokeDashoffset={circ - fill}
@@ -87,22 +88,56 @@ function ScoreRing({
 						style={{ transition: 'stroke-dashoffset 1s ease' }}
 					/>
 				</svg>
-				<div
-					className='absolute inset-0 flex items-center justify-center'
-					style={blurred ? { filter: 'blur(5px)' } : {}}>
+				<div className='absolute inset-0 flex items-center justify-center'>
 					<span
 						className='font-bold tabular-nums'
-						style={{
-							fontSize: size * 0.22,
-							color: blurred ? '#c8b89a' : color,
-						}}>
-						{blurred ? '??' : score}
+						style={{ fontSize: size * 0.22, color }}>
+						{score}
 					</span>
 				</div>
 			</div>
 			<span className='text-[11px] font-medium uppercase tracking-widest text-[#8a7060]'>
 				{label}
 			</span>
+		</div>
+	);
+}
+
+// ─── Readout (one score explained in one line) ───────────────────────────────
+
+function Readout({
+	title,
+	icon,
+	readout,
+}: {
+	title: string;
+	icon: string;
+	readout: DemoReadout;
+}) {
+	const color = scoreColor(readout.score);
+	return (
+		<div className='rounded-xl border border-[#eee0d0] bg-[#fffcf8] px-4 py-3'>
+			<div className='flex items-center justify-between gap-3'>
+				<p className='text-[11px] font-semibold uppercase tracking-widest text-[#8a7060]'>
+					<span aria-hidden className='mr-1.5'>
+						{icon}
+					</span>
+					{title}
+				</p>
+				<span
+					className='shrink-0 text-xs font-bold tabular-nums'
+					style={{ color }}>
+					{readout.score}/100
+				</span>
+			</div>
+			<p className='mt-1 text-sm font-semibold' style={{ color }}>
+				{readout.verdict}
+			</p>
+			{readout.read && (
+				<p className='mt-1 text-sm italic text-[#3c2a18]'>
+					&ldquo;{readout.read}&rdquo;
+				</p>
+			)}
 		</div>
 	);
 }
@@ -116,19 +151,7 @@ function TeaserResult({
 	result: DemoResult;
 	onSignUp: () => void;
 }) {
-	const overallColor =
-		result.overallScore >= 70
-			? '#5a8a5a'
-			: result.overallScore >= 45
-				? '#c8832a'
-				: '#b84c4c';
-
-	const verdict =
-		result.overallScore >= 70
-			? 'Solid foundation — with room to grow'
-			: result.overallScore >= 45
-				? 'Needs work — visitors are confused'
-				: "Critical issues — you're losing leads";
+	const overallColor = scoreColor(result.overallScore);
 
 	return (
 		<div
@@ -141,45 +164,32 @@ function TeaserResult({
 					background: '#faf6f0',
 					borderBottom: '1px solid #e8ddd0',
 				}}>
-				<div className='flex items-center gap-2'>
-					<div className='h-2 w-2 rounded-full bg-[#5a8a5a]' />
-					<span className='text-[11px] font-semibold uppercase tracking-widest text-[#8a7060]'>
-						Demo Report · {result.domain}
+				<div className='flex min-w-0 items-center gap-2'>
+					<div className='h-2 w-2 shrink-0 rounded-full bg-[#5a8a5a]' />
+					<span className='truncate text-[11px] font-semibold uppercase tracking-widest text-[#8a7060]'>
+						Free check · {result.domain}
 					</span>
 				</div>
 				<span
-					className='rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider'
+					className='shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider'
 					style={{ background: '#f0e8d8', color: '#8a6040' }}>
-					Preview Only
+					Summary
 				</span>
 			</div>
 
 			{/* Score row */}
-			<div className='flex items-center justify-around px-6 py-6'>
-				<ScoreRing
-					score={result.overallScore}
-					label='Overall'
-					size={88}
-				/>
-				<ScoreRing
-					score={result.humanScore}
-					label='Clarity'
-					size={72}
-				/>
-				<ScoreRing
-					score={result.aiScore}
-					label='AI-SEO'
-					size={72}
-					blurred
-				/>
+			<div className='flex items-center justify-around px-4 py-6 sm:px-6'>
+				<ScoreRing score={result.overallScore} label='Overall' size={88} />
+				<ScoreRing score={result.human.score} label='Human' size={72} />
+				<ScoreRing score={result.ai.score} label='AI' size={72} />
 			</div>
 
-			{/* Verdict */}
+			{/* Overall verdict */}
 			<div
-				className='mx-5 mb-4 rounded-xl px-4 py-3'
+				className='mx-5 mb-3 rounded-xl px-4 py-3'
 				style={{ background: '#faf6f0', border: '1px solid #e8ddd0' }}>
 				<div className='flex items-center gap-2'>
-					<span style={{ color: overallColor, fontSize: 16 }}>
+					<span aria-hidden style={{ color: overallColor, fontSize: 16 }}>
 						{result.overallScore >= 70
 							? '✓'
 							: result.overallScore >= 45
@@ -187,80 +197,57 @@ function TeaserResult({
 								: '✕'}
 					</span>
 					<p className='text-sm font-semibold text-[#2c1e10]'>
-						{verdict}
+						{result.verdict}
 					</p>
 				</div>
 			</div>
 
-			{/* Issues — 2 shown, rest blurred */}
+			{/* How humans and AI read the site */}
 			<div className='mx-5 mb-4 space-y-2'>
-				<p className='text-[11px] font-semibold uppercase tracking-widest text-[#8a7060]'>
-					Top Issues Found
-				</p>
+				<Readout
+					title='What a visitor thinks you do'
+					icon='👀'
+					readout={result.human}
+				/>
+				<Readout
+					title='How AI reads your site'
+					icon='🤖'
+					readout={result.ai}
+				/>
+			</div>
 
-				{result.topIssues.map((issue, i) => (
-					<div
-						key={i}
-						className='flex items-start gap-2.5 rounded-xl border border-[#eee0d0] bg-[#fffcf8] px-4 py-3'>
-						<span className='mt-0.5 text-sm text-[#b84c4c]'>✕</span>
-						<p className='text-sm text-[#3c2a18]'>{issue}</p>
-					</div>
-				))}
-
-				{/* Blurred hidden issues */}
-				{result.hiddenIssueCount > 0 && (
-					<div
-						className='relative overflow-hidden rounded-xl border border-[#eee0d0]'
-						style={{ minHeight: 52 }}>
+			{/* Top issues */}
+			{result.topIssues.length > 0 && (
+				<div className='mx-5 mb-4 space-y-2'>
+					<p className='text-[11px] font-semibold uppercase tracking-widest text-[#8a7060]'>
+						Top issues found
+					</p>
+					{result.topIssues.map((issue, i) => (
 						<div
-							className='flex items-start gap-2.5 px-4 py-3'
-							style={{ filter: 'blur(4px)', userSelect: 'none' }}>
-							<span className='mt-0.5 text-sm text-[#b84c4c]'>
+							key={i}
+							className='flex items-start gap-2.5 rounded-xl border border-[#eee0d0] bg-[#fffcf8] px-4 py-3'>
+							<span aria-hidden className='mt-0.5 text-sm text-[#b84c4c]'>
 								✕
 							</span>
-							<p className='text-sm text-[#3c2a18]'>
-								Your hero copy is buried under navigation — most
-								visitors never read it before leaving.
-							</p>
+							<p className='text-sm text-[#3c2a18]'>{issue}</p>
 						</div>
-						<div className='absolute inset-0 flex items-center justify-center rounded-xl bg-white/70 backdrop-blur-[1px]'>
-							<p className='text-xs font-semibold text-[#8a6040]'>
-								+ {result.hiddenIssueCount} more issue
-								{result.hiddenIssueCount > 1 ? 's' : ''} hidden
-							</p>
-						</div>
-					</div>
-				)}
-			</div>
+					))}
+				</div>
+			)}
 
-			{/* Blurred sections teaser */}
+			{/* What the full report adds */}
 			<div
-				className='mx-5 mb-5 overflow-hidden rounded-xl border border-[#e8ddd0]'
-				style={{ position: 'relative' }}>
-				{/* Fake content behind blur */}
-				<div
-					style={{
-						filter: 'blur(6px)',
-						userSelect: 'none',
-						pointerEvents: 'none',
-					}}>
-					<div className='space-y-2 p-4'>
-						<div className='h-3 w-3/4 rounded bg-[#e8ddd0]' />
-						<div className='h-3 w-1/2 rounded bg-[#e8ddd0]' />
-						<div className='h-3 w-2/3 rounded bg-[#e8ddd0]' />
-						<div className='mt-3 h-3 w-full rounded bg-[#e8ddd0]' />
-						<div className='h-3 w-4/5 rounded bg-[#e8ddd0]' />
-					</div>
-				</div>
-				{/* Overlay */}
-				<div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/80 backdrop-blur-[2px]'>
-					<p className='text-xs font-semibold text-[#5a3e28]'>
-						AI-SEO Score · Rewrite Suggestions · Action Plan
-					</p>
-					<p className='text-[11px] text-[#8a7060]'>
-						Sign up free to unlock the full report
-					</p>
-				</div>
+				className='mx-5 mb-5 rounded-xl border border-dashed border-[#d8c8b0] px-4 py-3'
+				style={{ background: '#fdf9f3' }}>
+				<p className='text-xs font-semibold text-[#5a3e28]'>
+					The full report (free account) adds:
+				</p>
+				<ul className='mt-1.5 space-y-0.5 text-[12px] text-[#7a5c40]'>
+					<li>· Every issue, with why it hurts and the exact fix</li>
+					<li>· The search terms AI can&apos;t find on your page</li>
+					<li>· A rewritten headline, subheadline and call to action</li>
+					<li>· A step-by-step action plan</li>
+				</ul>
 			</div>
 
 			{/* CTA */}
@@ -278,13 +265,13 @@ function TeaserResult({
 							'linear-gradient(135deg, #3c2a18 0%, #6b4226 100%)',
 						boxShadow: '0 2px 12px rgba(60,42,24,0.25)',
 					}}>
-					Get the Full Report
+					Get the full report free
 					<span className='ml-2 inline-block transition-transform duration-150 group-hover:translate-x-0.5'>
 						→
 					</span>
 				</button>
 				<p className='mt-2 text-center text-[11px] text-[#a09080]'>
-					Full AI-SEO score · Rewrite suggestions · PDF export
+					Free account · 1 full scan · no credit card
 				</p>
 			</div>
 		</div>
