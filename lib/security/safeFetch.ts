@@ -20,7 +20,7 @@ export class UnsafeUrlError extends Error {
 }
 
 function isPrivateIPv4(ip: string): boolean {
-	const [a, b] = ip.split('.').map(Number);
+	const [a, b, c] = ip.split('.').map(Number);
 	return (
 		a === 0 ||
 		a === 10 ||
@@ -29,8 +29,12 @@ function isPrivateIPv4(ip: string): boolean {
 		(a === 169 && b === 254) || // link-local / cloud metadata
 		(a === 172 && b >= 16 && b <= 31) ||
 		(a === 192 && b === 168) ||
-		(a === 192 && b === 0) ||
-		(a === 198 && (b === 18 || b === 19)) ||
+		// Only 192.0.0.0/24 (IETF) and 192.0.2.0/24 (TEST-NET-1) are reserved;
+		// the rest of 192.0.x.x is public (e.g. WordPress VIP at 192.0.64.0/18).
+		(a === 192 && b === 0 && (c === 0 || c === 2)) ||
+		(a === 198 && (b === 18 || b === 19)) || // benchmarking
+		(a === 198 && b === 51 && c === 100) || // TEST-NET-2
+		(a === 203 && b === 0 && c === 113) || // TEST-NET-3
 		a >= 224 // multicast / reserved
 	);
 }
