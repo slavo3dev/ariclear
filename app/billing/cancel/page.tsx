@@ -22,7 +22,7 @@ export default function BillingCancelPage() {
 					</p>
 					<div className='mt-6 flex flex-col justify-center gap-2 sm:flex-row'>
 						<Link
-							href='/#pricing'
+							href='/pricing'
 							className='rounded-full bg-choco-900 px-5 py-2.5 text-sm font-semibold text-cream-50 hover:bg-choco-800'>
 							Back to pricing
 						</Link>

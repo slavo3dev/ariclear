@@ -287,7 +287,7 @@ export default function HistoryPage() {
                   {limitStatus.isExpired
                     ? 'Your plan has ended. Your scans stay here to read. '
                     : 'You have used your free scan. '}
-                  <Link href="/#pricing" className="font-semibold underline">
+                  <Link href="/pricing" className="font-semibold underline">
                     {limitStatus.isExpired ? 'Renew your plan' : 'Choose a plan'}
                   </Link>{' '}
                   to re-scan and track changes.

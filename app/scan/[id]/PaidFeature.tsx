@@ -28,7 +28,7 @@ export function LockedFeature({
 					</p>
 					<p className='mt-1 text-xs text-choco-600'>{description}</p>
 					<Link
-						href='/#pricing'
+						href='/pricing'
 						className='mt-3 inline-block rounded-full bg-choco-900 px-4 py-2 text-xs font-semibold text-cream-50 hover:bg-choco-800'>
 						{isExpired ? 'Renew your plan' : 'Unlock with Gladiator or Centurion'}
 					</Link>

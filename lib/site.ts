@@ -57,6 +57,7 @@ export const PUBLIC_PAGES: Array<{
 }> = [
 	{ path: '/', priority: 1, changeFrequency: 'weekly' },
 	{ path: '/scan', priority: 0.8, changeFrequency: 'monthly' },
+	{ path: '/pricing', priority: 0.9, changeFrequency: 'monthly' },
 	{ path: '/terms', priority: 0.2, changeFrequency: 'yearly' },
 	{ path: '/privacy', priority: 0.2, changeFrequency: 'yearly' },
 	{ path: '/refund', priority: 0.2, changeFrequency: 'yearly' },
@@ -86,7 +87,7 @@ export function siteJsonLd(): Record<string, unknown> {
 		priceCurrency: 'USD',
 		description: `${PLAN_TERM_MONTHS} months of AriClear for ${p.websites} website${p.websites > 1 ? 's' : ''}. One payment, no auto-renewal.`,
 		availability: 'https://schema.org/InStock',
-		url: `${SITE_URL}/#pricing`,
+		url: `${SITE_URL}/pricing`,
 	}));
 
 	return {

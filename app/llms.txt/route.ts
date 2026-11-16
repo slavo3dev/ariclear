@@ -32,7 +32,7 @@ ${plans}
 ## Pages
 - [Home and free demo](${SITE_URL}/)
 - [Run a full scan](${SITE_URL}/scan)
-- [Pricing](${SITE_URL}/#pricing)
+- [Pricing](${SITE_URL}/pricing)
 - [Terms of Service](${SITE_URL}/terms)
 - [Privacy Policy](${SITE_URL}/privacy)
 - [Refund Policy](${SITE_URL}/refund)
