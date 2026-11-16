@@ -54,7 +54,7 @@ export async function renderOgCard(size: { width: number; height: number }) {
 						Do humans and AI understand your website?
 					</div>
 					<div style={{ fontSize: 32, color: '#964b2e' }}>
-						A clarity score for visitors and an AI readability score, with the exact fixes.
+						Clarity and AI readability scores, with the exact fixes.
 					</div>
 				</div>
 
