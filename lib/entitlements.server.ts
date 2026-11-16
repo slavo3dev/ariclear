@@ -60,19 +60,37 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
 
 export type ClaimResult = 'ok' | 'scan_limit' | 'site_limit' | 'no_subscription';
 
-/** Atomically reserve the site slot and count the scan (claim_scan() in SQL). */
-export async function claimScan(
+export type RecordResult =
+	| { status: 'ok'; scanId: string }
+	| { status: Exclude<ClaimResult, 'ok'>; scanId: null };
+
+/**
+ * Claim the scan and save the report in one transaction (record_scan() in
+ * SQL). `scan` is built on the server from the model output; nothing the
+ * browser sends is stored.
+ */
+export async function recordScan(
 	userId: string,
 	domain: string,
 	url: string,
 	limits: { p_max_sites: number; p_max_lifetime_scans: number | null },
-): Promise<ClaimResult> {
-	const { data, error } = await supabaseAriClearAdmin().rpc('claim_scan', {
+	scan: Record<string, unknown>,
+): Promise<RecordResult> {
+	const { data, error } = await supabaseAriClearAdmin().rpc('record_scan', {
 		p_user_id: userId,
 		p_domain: domain,
 		p_url: url,
 		...limits,
+		p_scan: scan,
 	});
 	if (error) throw new EntitlementsUnavailableError();
-	return data as ClaimResult;
+	const row = (Array.isArray(data) ? data[0] : data) as
+		| { status: ClaimResult; scan_id: string | null }
+		| undefined;
+	if (!row) throw new EntitlementsUnavailableError();
+	if (row.status === 'ok' && row.scan_id) {
+		return { status: 'ok', scanId: row.scan_id };
+	}
+	if (row.status === 'ok') throw new EntitlementsUnavailableError();
+	return { status: row.status, scanId: null };
 }

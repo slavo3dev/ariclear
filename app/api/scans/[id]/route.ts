@@ -1,5 +1,11 @@
 import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
+import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
+import { createLogger, errorCode } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
+
+const log = createLogger('scans/id');
+
+type ChecklistItem = { id: string; label: string; checked: boolean };
 
 // GET /api/scans/[id] - Get a single scan
 export async function GET(
@@ -37,8 +43,8 @@ export async function GET(
 		}
 
 		return NextResponse.json({ scan: data });
-	} catch {
-		console.error('[scans/id] get failed: unexpected');
+	} catch (err) {
+		log.error('get failed', { code: errorCode(err) });
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },
@@ -46,7 +52,11 @@ export async function GET(
 	}
 }
 
-// PATCH /api/scans/[id] - Update a scan (e.g., checklist)
+// PATCH /api/scans/[id] - Tick or untick checklist items.
+// Body: { checklist: [{ id, checked }] }. Only the `checked` flag of items
+// that already exist on the scan can change; labels and the item list are
+// set by the server when the scan is saved. Users cannot UPDATE scans
+// directly, so this writes with the service role after an ownership check.
 export async function PATCH(
 	request: NextRequest,
 	segmentData: { params: Promise<{ id: string }> },
@@ -68,16 +78,49 @@ export async function PATCH(
 		}
 
 		const body = await request.json().catch(() => null);
-		const checklist = body?.checklist;
-
-		if (!checklist) {
+		const incoming: unknown = body?.checklist;
+		if (!Array.isArray(incoming) || incoming.length > 100) {
 			return NextResponse.json(
 				{ error: 'Missing checklist data' },
 				{ status: 400 },
 			);
 		}
 
-		const { data, error } = await supabase
+		const wanted = new Map<string, boolean>();
+		for (const item of incoming) {
+			if (
+				item &&
+				typeof item === 'object' &&
+				typeof (item as ChecklistItem).id === 'string' &&
+				typeof (item as ChecklistItem).checked === 'boolean'
+			) {
+				wanted.set((item as ChecklistItem).id, (item as ChecklistItem).checked);
+			}
+		}
+
+		// Ownership check with the user's own client (RLS applies).
+		const { data: scan, error: fetchError } = await supabase
+			.from('scans')
+			.select('id, checklist')
+			.eq('id', id)
+			.eq('user_id', user.id)
+			.single();
+
+		if (fetchError || !scan) {
+			return NextResponse.json(
+				{ error: 'Scan not found' },
+				{ status: 404 },
+			);
+		}
+
+		const current: ChecklistItem[] = Array.isArray(scan.checklist)
+			? scan.checklist
+			: [];
+		const checklist = current.map((item) =>
+			wanted.has(item.id) ? { ...item, checked: wanted.get(item.id)! } : item,
+		);
+
+		const { data, error } = await supabaseAriClearAdmin()
 			.from('scans')
 			.update({ checklist })
 			.eq('id', id)
@@ -86,7 +129,7 @@ export async function PATCH(
 			.single();
 
 		if (error || !data) {
-			console.error('[scans/id] update failed:', error?.code ?? 'no row');
+			log.error('update failed', { code: error?.code ?? 'no_row' });
 			return NextResponse.json(
 				{ error: 'Failed to update scan' },
 				{ status: 500 },
@@ -94,8 +137,8 @@ export async function PATCH(
 		}
 
 		return NextResponse.json({ scan: data });
-	} catch {
-		console.error('[scans/id] update failed: unexpected');
+	} catch (err) {
+		log.error('update failed', { code: errorCode(err) });
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },
@@ -150,7 +193,7 @@ export async function DELETE(
 			.eq('user_id', user.id);
 
 		if (deleteError) {
-			console.error('[scans/id] delete failed:', deleteError.code ?? 'unknown');
+			log.error('delete failed', { code: deleteError.code ?? 'unknown' });
 			return NextResponse.json(
 				{ error: 'Failed to delete scan' },
 				{ status: 500 },
@@ -169,8 +212,8 @@ export async function DELETE(
 			websiteSlotFreed: (count ?? 0) === 0,
 			domain: scan.domain,
 		});
-	} catch {
-		console.error('[scans/id] delete failed: unexpected');
+	} catch (err) {
+		log.error('delete failed', { code: errorCode(err) });
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },

@@ -1,19 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// POST /api/analyze
+// Runs a full scan for a signed-in user and SAVES it. The report stored in
+// `scans` is the one built here from the model output; the browser never
+// sends scores. Claiming the scan (plan limits) and saving it happen in one
+// database transaction (record_scan()).
+
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { extractPageContent } from "@/lib/analysis/extractPage";
+import { fence, UNTRUSTED_RULE } from "@/lib/analysis/untrusted";
+import {
+  isAnalyzeReport,
+  sanitizeReport,
+  scanRowFromReport,
+} from "@/lib/analysis/scanRow";
 import { supabaseAriClearServer } from "@/lib/supabase/auth/server";
 import { safeFetch, UnsafeUrlError } from "@/lib/security/safeFetch";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { claimScanLimits, scanDenial } from "@/lib/entitlements";
 import {
-  claimScan,
   getEntitlements,
+  recordScan,
   EntitlementsUnavailableError,
 } from "@/lib/entitlements.server";
+import { createLogger, errorCode } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
+const log = createLogger("analyze");
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function isValidHttpUrl(input: string) {
@@ -23,34 +37,6 @@ function isValidHttpUrl(input: string) {
   } catch {
     return false;
   }
-}
-
-function isReportShape(obj: any) {
-  return (
-    obj &&
-    typeof obj === "object" &&
-    obj.human &&
-    typeof obj.human.clarityScore === "number" &&
-    typeof obj.human.whatItSeemsLike === "string" &&
-    typeof obj.human.oneSentenceValueProp === "string" &&
-    typeof obj.human.bestGuessAudience === "string" &&
-    Array.isArray(obj.human.confusions) &&
-    Array.isArray(obj.human.topIssues) &&
-    obj.ai &&
-    typeof obj.ai.aiSeoScore === "number" &&
-    typeof obj.ai.aiSummary === "string" &&
-    typeof obj.ai.indexerRead === "string" &&
-    Array.isArray(obj.ai.missingKeywords) &&
-    Array.isArray(obj.ai.structuredDataSuggestions) &&
-    obj.copy &&
-    typeof obj.copy.suggestedHeadline === "string" &&
-    typeof obj.copy.suggestedSubheadline === "string" &&
-    typeof obj.copy.suggestedCTA === "string" &&
-    obj.plan &&
-    Array.isArray(obj.plan.nextSteps) &&
-    obj.prompts &&
-    typeof obj.prompts.aiSeoPrompt === "string"
-  );
 }
 
 export async function POST(req: Request) {
@@ -65,7 +51,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const limit = rateLimit(`analyze:${user.id}`, 10, 60_000);
+    const limit = await rateLimit(`analyze:${user.id}`, 10, 60_000);
     if (!limit.ok) {
       return NextResponse.json(
         { error: "Too many scans. Please wait a moment.", rateLimited: true },
@@ -73,7 +59,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const { url } = (await req.json()) as { url?: string };
+    const { url } = ((await req.json().catch(() => ({}))) ?? {}) as {
+      url?: string;
+    };
 
     if (!url || !isValidHttpUrl(url)) {
       return NextResponse.json(
@@ -161,6 +149,9 @@ OUTPUT RULES
 - aiSeoPrompt: write a ready-to-paste prompt the user can give to any AI to rewrite their hero section, meta description, and H1/H2s in a way that passes both human clarity and AI-readability tests.
 - confusions: write each confusion as a real visitor thought, e.g. "I can't tell if this is for individuals or businesses."
 
+${UNTRUSTED_RULE}
+The page arrives inside <untrusted_page> tags as JSON. Score what the page actually says.
+
 Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no backticks):
 
 {
@@ -212,7 +203,7 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
         { role: "system", content: instructions },
         {
           role: "user",
-          content: JSON.stringify({ url, extracted }, null, 2),
+          content: `URL: ${url}\n\n${fence("page", JSON.stringify(extracted, null, 2))}`,
         },
       ],
       response_format: { type: "json_object" },
@@ -224,30 +215,37 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
       return NextResponse.json({ error: "Empty AI response." }, { status: 500 });
     }
 
-    let report: any;
+    let parsed: unknown;
     try {
-      report = JSON.parse(outputText);
+      parsed = JSON.parse(outputText);
     } catch {
-      console.error("[analyze] model returned invalid JSON");
+      log.error("model returned invalid JSON");
       return NextResponse.json(
         { error: "AI returned invalid JSON." },
         { status: 500 }
       );
     }
 
-    if (!isReportShape(report)) {
-      console.error("[analyze] model returned an unexpected shape");
+    if (!isAnalyzeReport(parsed)) {
+      log.error("model returned an unexpected shape");
       return NextResponse.json(
         { error: "AI returned unexpected response shape." },
         { status: 500 }
       );
     }
+    const report = sanitizeReport(parsed);
 
-    // Count the scan and reserve the site slot atomically. Parallel requests
-    // that all passed the pre-check above stop here; only the allowed number
-    // of them get a report.
-    const claim = await claimScan(user.id, domain, url, claimScanLimits(ent));
-    if (claim !== "ok") {
+    // Count the scan, reserve the site slot and save the report atomically.
+    // Parallel requests that all passed the pre-check above stop here; only
+    // the allowed number of them are saved and returned.
+    const saved = await recordScan(
+      user.id,
+      domain,
+      url,
+      claimScanLimits(ent),
+      scanRowFromReport(report)
+    );
+    if (saved.status !== "ok") {
       const fresh = await getEntitlements(user.id);
       const denial = scanDenial(fresh, domain);
       return NextResponse.json(
@@ -258,17 +256,17 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
       );
     }
 
-    return NextResponse.json(report);
+    return NextResponse.json({ ...report, scanId: saved.scanId });
   } catch (err: any) {
     if (err instanceof EntitlementsUnavailableError) {
+      log.error("plan or save unavailable");
       return NextResponse.json(
         { error: "Could not load your plan. Please try again." },
         { status: 500 }
       );
     }
-    console.error("[analyze] failed:", err?.status ?? err?.name ?? "unknown");
+    log.error("failed", { code: errorCode(err) });
 
-    // Handle OpenAI rate limit errors specifically
     if (err?.status === 429 || err?.code === "rate_limit_exceeded") {
       return NextResponse.json(
         {
@@ -276,17 +274,6 @@ Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no bac
           rateLimited: true,
         },
         { status: 429 }
-      );
-    }
-
-    // Handle other OpenAI errors
-    if (err?.status) {
-      return NextResponse.json(
-        {
-          error: `OpenAI API error: ${err.message || "Unknown error"}`,
-          status: err.status,
-        },
-        { status: err.status }
       );
     }
 

@@ -70,6 +70,8 @@ type AnalyzeResponse = {
 	errorCode?: ErrorCode;
 	message?: string;
 	requiresUpgrade?: boolean;
+	/** Id of the saved scan (set by /api/analyze on success). */
+	scanId?: string;
 	limit?: number;
 	current?: number;
 	tier?: string;
@@ -422,35 +424,12 @@ export default function ScanPage() {
 
 			setResult(json);
 
-			try {
-				const saveRes = await fetch('/api/scans', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						analyzeResult: json,
-						url: cleanedUrl,
-					}),
-				});
-
-				if (saveRes.ok) {
-					const saveJson = await saveRes.json();
-					const scanId = saveJson?.scan?.id;
-					toast.success('Scan saved!');
-					if (scanId) {
-						router.push(`/scan/${scanId}`);
-					} else {
-						await fetchLimitStatus();
-					}
-				} else {
-					toast.error(
-						'Your scan finished but could not be saved. Please contact us.',
-					);
-					await fetchLimitStatus();
-				}
-			} catch {
-				toast.error(
-					'Your scan finished but could not be saved. Please contact us.',
-				);
+			// /api/analyze saves the scan itself and returns its id.
+			if (json.scanId) {
+				toast.success('Scan saved!');
+				router.push(`/scan/${json.scanId}`);
+			} else {
+				await fetchLimitStatus();
 			}
 		} catch {
 			setResult({ error: 'Network error. Please try again.' });
