@@ -334,7 +334,7 @@ function SiteLimitBanner({ message, tier }: { message: string; tier?: string }) 
 							</Button>
 						) : (
 							<Link
-								href='/#pricing'
+								href='/pricing'
 								className='text-sm font-semibold text-choco-900 underline hover:text-choco-700'>
 								See {PAID_PLANS.pro.label} ({PAID_PLANS.pro.websites} websites)
 							</Link>
@@ -369,7 +369,7 @@ function GenericErrorBanner({ message }: { message: string }) {
 export default function ScanPage() {
 	const router = useRouter();
 	const { user, loading: authLoading } = useAuth();
-	const goToPricing = () => router.push('/#pricing');
+	const goToPricing = () => router.push('/pricing');
 
 	const [authOpen, setAuthOpen] = useState(false);
 	const [targetUrl, setTargetUrl] = useState('');
@@ -405,6 +405,14 @@ export default function ScanPage() {
 			setLimitLoading(false);
 		}
 	};
+
+	// /scan?url=… (Re-scan and "Scan it" on the dashboard) prefills the form.
+	useEffect(() => {
+		const raw = new URLSearchParams(window.location.search).get('url')?.trim();
+		if (!raw) return;
+		const prefill = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+		queueMicrotask(() => setTargetUrl(prefill));
+	}, []);
 
 	useEffect(() => {
 		if (authLoading) return;

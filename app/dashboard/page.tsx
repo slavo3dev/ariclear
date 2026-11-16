@@ -1,327 +1,419 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@ariclear/components";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Navbar, SiteFooter } from "@ariclear/components";
-import { getTierBadgeColor, getTierLabel } from "@/lib/plans";
-import { createLogger, errorCode } from "@/lib/logger";
+// app/dashboard/page.tsx
+// The signed-in home. One card per tracked website with its latest scores,
+// the change since the previous scan and the fixes left, plus the plan and
+// what to do next. proxy.ts sends signed-in visitors of "/" here.
 
-const log = createLogger("dashboard");
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Navbar, SiteFooter, useAuth } from '@ariclear/components';
+import { getTierLabel } from '@/lib/plans';
+import { createLogger, errorCode } from '@/lib/logger';
 
-type SubscriptionInfo = {
-  tier: string;
-  isPaid: boolean;
-  isComp: boolean;
-  isExpired: boolean;
-  expiresAt: string | null;
-  websites_limit: number;
-  websites_used: number;
-  websites_remaining: number;
-  can_scan: boolean;
+const log = createLogger('dashboard');
+
+type Subscription = {
+	tier: string;
+	isPaid: boolean;
+	isComp: boolean;
+	isExpired: boolean;
+	expiresAt: string | null;
+	websites_limit: number;
+	websites_used: number;
+	canAddSite: boolean;
+	can_scan: boolean;
+	features: { rescan: boolean; trend: boolean };
 };
 
-type ScanHistoryItem = {
-  id: string;
-  url: string;
-  created_at: string;
-  status: string;
-  issues_found?: number;
+type Scan = {
+	id: string;
+	domain: string;
+	url: string;
+	overall_score: number;
+	human_score: number;
+	ai_score: number;
+	technical_score: number | null;
+	created_at: string;
+	issues: unknown[] | null;
+	checklist: Array<{ id: string; checked: boolean }> | null;
 };
+
+type Site = {
+	domain: string;
+	latest: Scan;
+	previous: Scan | null;
+	scanCount: number;
+};
+
+function bySite(scans: Scan[]): Site[] {
+	const groups = new Map<string, Scan[]>();
+	for (const s of scans) {
+		const list = groups.get(s.domain) ?? [];
+		list.push(s);
+		groups.set(s.domain, list);
+	}
+	return [...groups.entries()]
+		.map(([domain, list]) => {
+			const sorted = list.sort((a, b) => b.created_at.localeCompare(a.created_at));
+			return { domain, latest: sorted[0], previous: sorted[1] ?? null, scanCount: sorted.length };
+		})
+		.sort((a, b) => b.latest.created_at.localeCompare(a.latest.created_at));
+}
+
+function scoreTone(score: number) {
+	if (score >= 70) return 'text-green-700';
+	if (score >= 40) return 'text-amber-700';
+	return 'text-red-700';
+}
+
+function formatDate(iso: string) {
+	return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function timeAgo(iso: string) {
+	const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+	if (days <= 0) return 'today';
+	if (days === 1) return 'yesterday';
+	if (days < 30) return `${days} days ago`;
+	return formatDate(iso);
+}
+
+function issuesLeft(scan: Scan) {
+	const total = Array.isArray(scan.issues) ? scan.issues.length : 0;
+	const done = (scan.checklist ?? []).filter((c) => c.checked).length;
+	return { total, left: Math.max(0, total - done), done: Math.min(done, total) };
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [recentScans, setRecentScans] = useState<ScanHistoryItem[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+	const { user, loading } = useAuth();
+	const router = useRouter();
+	const [sub, setSub] = useState<Subscription | null>(null);
+	const [scans, setScans] = useState<Scan[]>([]);
+	const [loadingData, setLoadingData] = useState(true);
+	const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/");
-    }
-  }, [user, loading, router]);
+	useEffect(() => {
+		if (!loading && !user) router.push('/');
+	}, [user, loading, router]);
 
-  useEffect(() => {
-    if (!user) return;
+	useEffect(() => {
+		if (!user) return;
+		let alive = true;
+		(async () => {
+			try {
+				const [subRes, scansRes] = await Promise.all([
+					fetch('/api/subscription'),
+					fetch('/api/scans?limit=100'),
+				]);
+				if (!alive) return;
+				if (subRes.ok) setSub(await subRes.json());
+				if (scansRes.ok) setScans(((await scansRes.json()).scans ?? []) as Scan[]);
+				if (!subRes.ok || !scansRes.ok) setLoadError(true);
+			} catch (error) {
+				log.warn('could not load dashboard data', { code: errorCode(error) });
+				if (alive) setLoadError(true);
+			} finally {
+				if (alive) setLoadingData(false);
+			}
+		})();
+		return () => {
+			alive = false;
+		};
+	}, [user]);
 
-    const fetchDashboardData = async () => {
-      try {
-        setLoadingData(true);
+	const sites = useMemo(() => bySite(scans), [scans]);
 
-        // Fetch subscription info
-        const subRes = await fetch("/api/subscription");
-        if (subRes.ok) {
-          const subData = await subRes.json();
-          setSubscription(subData);
-        }
+	if (loading || (user && loadingData)) {
+		return (
+			<div className='min-h-screen bg-cream-50'>
+				<Navbar />
+				<div className='mx-auto max-w-6xl px-4 py-16 text-center text-sm text-choco-500 sm:px-6 lg:px-8'>
+					Loading your sites…
+				</div>
+			</div>
+		);
+	}
+	if (!user) return null;
 
-        // Fetch recent scans (you'll need to implement this endpoint)
-        const scansRes = await fetch("/api/scans?limit=5");
-        if (scansRes.ok) {
-          const scansData = await scansRes.json();
-          setRecentScans(scansData.scans || []);
-        }
-      } catch (error) {
-        log.warn("could not load dashboard data", { code: errorCode(error) });
-      } finally {
-        setLoadingData(false);
-      }
-    };
+	const canRescan = !!sub?.features?.rescan;
+	const planName = sub
+		? sub.isExpired
+			? 'Plan ended'
+			: getTierLabel(sub.tier, sub.websites_limit)
+		: '—';
 
-    fetchDashboardData();
-  }, [user]);
+	return (
+		<div className='flex min-h-screen flex-col bg-cream-50'>
+			<Navbar />
 
+			<main className='mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8'>
+				{/* Header */}
+				<div className='mb-6 flex flex-wrap items-end justify-between gap-4'>
+					<div>
+						<h1 className='text-2xl font-bold text-choco-900 sm:text-3xl'>Your websites</h1>
+						<p className='mt-1 text-sm text-choco-600'>
+							How visitors and AI read your sites, and what to fix next.
+						</p>
+					</div>
+					{sites.length > 0 && sub?.canAddSite && (
+						<Link
+							href='/scan'
+							className='inline-flex items-center gap-1.5 rounded-full bg-choco-900 px-5 py-2 text-sm font-semibold text-cream-50 transition hover:bg-choco-800'>
+							＋ Add a website
+						</Link>
+					)}
+				</div>
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+				{loadError && (
+					<p className='mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
+						Some of your data could not be loaded. Refresh the page to try again.
+					</p>
+				)}
 
-  const getUsagePercentage = () => {
-    if (!subscription) return 0;
-    return (subscription.websites_used / subscription.websites_limit) * 100;
-  };
+				{sub && <PlanNotice sub={sub} hasScans={sites.length > 0} />}
 
-  const getUsageColor = () => {
-    const percentage = getUsagePercentage();
-    if (percentage >= 90) return "bg-red-500";
-    if (percentage >= 70) return "bg-orange-500";
-    return "bg-green-500";
-  };
+				{/* Summary */}
+				{sub && (
+					<div className='mb-8 grid gap-4 sm:grid-cols-3'>
+						<SummaryTile label='Plan'>
+							<p className='text-lg font-semibold text-choco-900'>{planName}</p>
+							<p className='mt-0.5 text-xs text-choco-500'>
+								{sub.isPaid && sub.expiresAt
+									? `Active until ${formatDate(sub.expiresAt)}`
+									: sub.isPaid && sub.isComp
+										? 'Complimentary'
+										: sub.isExpired
+											? 'Your scans are still saved'
+											: 'Free account'}
+							</p>
+						</SummaryTile>
+						<SummaryTile label='Websites'>
+							<p className='text-lg font-semibold text-choco-900'>
+								{sub.websites_used}
+								<span className='text-sm font-normal text-choco-500'> of {sub.websites_limit}</span>
+							</p>
+							<div className='mt-2 h-1.5 w-full rounded-full bg-choco-100'>
+								<div
+									className='h-1.5 rounded-full bg-choco-800'
+									style={{ width: `${Math.min(100, (sub.websites_used / Math.max(1, sub.websites_limit)) * 100)}%` }}
+								/>
+							</div>
+						</SummaryTile>
+						<SummaryTile label='Fixes left'>
+							<p className='text-lg font-semibold text-choco-900'>
+								{sites.reduce((n, s) => n + issuesLeft(s.latest).left, 0)}
+							</p>
+							<p className='mt-0.5 text-xs text-choco-500'>across your latest scans</p>
+						</SummaryTile>
+					</div>
+				)}
 
-  if (loading || loadingData) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <div className="text-choco-600">Loading dashboard...</div>
-      </div>
-    );
-  }
+				{/* Sites */}
+				{sites.length === 0 ? (
+					<FirstScan />
+				) : (
+					<div className='grid gap-4 md:grid-cols-2'>
+						{sites.map((site) => (
+							<SiteCard key={site.domain} site={site} canRescan={canRescan} />
+						))}
+						{sub?.canAddSite && (
+							<Link
+								href='/scan'
+								className='flex min-h-[180px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-choco-200 p-6 text-center text-choco-600 transition hover:border-choco-400 hover:text-choco-900'>
+								<span className='text-2xl'>＋</span>
+								<span className='mt-1 text-sm font-semibold'>Add a website</span>
+								<span className='mt-1 text-xs text-choco-500'>
+									{sub.websites_limit - sub.websites_used} of {sub.websites_limit} slots free
+								</span>
+							</Link>
+						)}
+					</div>
+				)}
 
-  if (!user) return null;
+				{sites.length > 0 && (
+					<p className='mt-8 text-center text-sm text-choco-500'>
+						Looking for an older report?{' '}
+						<Link href='/history' className='font-medium text-choco-800 underline hover:text-choco-900'>
+							See all scans in History
+						</Link>
+					</p>
+				)}
+			</main>
 
-  return (
-    <div className="min-h-screen bg-cream-50">
-      <Navbar />
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-choco-900">Dashboard</h1>
-          <p className="mt-2 text-choco-600">
-            Welcome back, {user.email?.split("@")[0]}!
-          </p>
-        </div>
+			<SiteFooter />
+		</div>
+	);
+}
 
-        {/* Stats Grid */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8">
-          {/* Subscription Card */}
-          <div className="bg-white rounded-2xl shadow-soft p-6 border border-choco-100">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-choco-600">
-                Subscription Plan
-              </h3>
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-semibold ring-1 ${getTierBadgeColor(
-                  subscription?.tier
-                )}`}
-              >
-                {getTierLabel(subscription?.tier, subscription?.websites_limit)}
-              </span>
-            </div>
-            {subscription?.isPaid && subscription.expiresAt && (
-              <p className="text-xs text-choco-500 mt-2">
-                Active until {formatDate(subscription.expiresAt)}
-              </p>
-            )}
-            {subscription?.isPaid && subscription.isComp && !subscription.expiresAt && (
-              <p className="text-xs text-choco-500 mt-2">Complimentary plan</p>
-            )}
-            {subscription?.isExpired && (
-              <p className="text-xs text-red-600 mt-2 font-medium">
-                Plan ended{subscription.expiresAt ? ` ${formatDate(subscription.expiresAt)}` : ""}.{" "}
-                <Link href="/#pricing" className="underline">
-                  Renew
-                </Link>
-              </p>
-            )}
-            {subscription && !subscription.isPaid && !subscription.isExpired && (
-              <p className="text-xs text-choco-500 mt-2">
-                Free account: 1 scan.{" "}
-                <Link href="/#pricing" className="underline">
-                  See plans
-                </Link>
-              </p>
-            )}
-          </div>
+// ─── Pieces ──────────────────────────────────────────────────────────────────
 
-          {/* Websites Usage Card */}
-          <div className="bg-white rounded-2xl shadow-soft p-6 border border-choco-100">
-            <h3 className="text-sm font-medium text-choco-600 mb-4">
-              Website Usage
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-baseline justify-between">
-                <span className="text-3xl font-bold text-choco-900">
-                  {subscription?.websites_used || 0}
-                </span>
-                <span className="text-sm text-choco-500">
-                  of {subscription?.websites_limit || 0}
-                </span>
-              </div>
-              <div className="w-full bg-choco-100 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all ${getUsageColor()}`}
-                  style={{ width: `${getUsagePercentage()}%` }}
-                />
-              </div>
-              <p className="text-xs text-choco-500">
-                {subscription?.websites_remaining || 0} websites remaining
-              </p>
-            </div>
-          </div>
+function SummaryTile({ label, children }: { label: string; children: React.ReactNode }) {
+	return (
+		<div className='rounded-2xl border border-choco-100 bg-white p-4 shadow-soft'>
+			<p className='mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-choco-500'>{label}</p>
+			{children}
+		</div>
+	);
+}
 
-          {/* Scan Status Card */}
-          <div className="bg-white rounded-2xl shadow-soft p-6 border border-choco-100">
-            <h3 className="text-sm font-medium text-choco-600 mb-4">
-              Scan Status
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    subscription?.can_scan ? "bg-green-500" : "bg-red-500"
-                  }`}
-                />
-                <span className="text-sm text-choco-700">
-                  {subscription?.can_scan
-                    ? "Ready to scan"
-                    : subscription?.isExpired
-                      ? "Plan ended"
-                      : "Free scan used"}
-                </span>
-              </div>
-              {subscription?.can_scan && (
-                <Link
-                  href="/scan"
-                  className="inline-flex items-center justify-center w-full rounded-xl bg-choco-800 px-4 py-2 text-sm font-medium text-white hover:bg-choco-900 transition"
-                >
-                  Start New Scan
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
+function PlanNotice({ sub, hasScans }: { sub: Subscription; hasScans: boolean }) {
+	if (sub.isExpired) {
+		return (
+			<Notice
+				text='Your plan has ended. Your scans and reports are still here. Renew to re-scan and keep tracking.'
+				cta='Renew plan'
+			/>
+		);
+	}
+	if (!sub.isPaid && hasScans && !sub.can_scan) {
+		return (
+			<Notice
+				text='You have used your free scan. Upgrade to re-scan after you make changes, test rewrites and track your score.'
+				cta='See plans'
+			/>
+		);
+	}
+	return null;
+}
 
-        {/* Recent Scans */}
-        <div className="bg-white rounded-2xl shadow-soft border border-choco-100">
-          <div className="px-6 py-4 border-b border-choco-100">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-choco-900">
-                Recent Scans
-              </h2>
-              <Link
-                href="/history"
-                className="text-sm text-choco-600 hover:text-choco-900 transition"
-              >
-                View all →
-              </Link>
-            </div>
-          </div>
+function Notice({ text, cta }: { text: string; cta: string }) {
+	return (
+		<div className='mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3'>
+			<p className='text-sm text-choco-800'>{text}</p>
+			<Link
+				href='/pricing'
+				className='rounded-full bg-choco-900 px-4 py-1.5 text-xs font-semibold text-cream-50 transition hover:bg-choco-800'>
+				{cta}
+			</Link>
+		</div>
+	);
+}
 
-          <div className="divide-y divide-choco-100">
-            {recentScans.length > 0 ? (
-              recentScans.map((scan) => (
-                <div
-                  key={scan.id}
-                  className="px-6 py-4 hover:bg-cream-50/50 transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-choco-900 truncate">
-                        {scan.url}
-                      </p>
-                      <p className="text-xs text-choco-500 mt-1">
-                        {formatDate(scan.created_at)}
-                      </p>
-                    </div>
-                    <div className="ml-4 flex items-center gap-3">
-                      {scan.issues_found !== undefined && (
-                        <span
-                          className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                            scan.issues_found > 0
-                              ? "bg-red-100 text-red-700"
-                              : "bg-green-100 text-green-700"
-                          }`}
-                        >
-                          {scan.issues_found} issues
-                        </span>
-                      )}
-                      <span
-                        className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                          scan.status === "completed"
-                            ? "bg-green-100 text-green-700"
-                            : scan.status === "failed"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {scan.status}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="px-6 py-12 text-center">
-                <p className="text-sm text-choco-500">No scans yet</p>
-                <Link
-                  href="/scan"
-                  className="inline-block mt-4 text-sm text-choco-700 hover:text-choco-900 font-medium transition"
-                >
-                  Start your first scan →
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
+function SiteCard({ site, canRescan }: { site: Site; canRescan: boolean }) {
+	const { latest, previous } = site;
+	const delta = previous ? latest.overall_score - previous.overall_score : null;
+	const issues = issuesLeft(latest);
 
-        {/* Quick Actions */}
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <Link
-            href="/scan"
-            className="bg-white rounded-xl shadow-soft p-6 border border-choco-100 hover:shadow-md transition group"
-          >
-            <div className="text-2xl mb-2">🔍</div>
-            <h3 className="font-semibold text-choco-900 group-hover:text-choco-700 transition">
-              New Scan
-            </h3>
-            <p className="text-sm text-choco-600 mt-1">
-              See how visitors and AI read your site
-            </p>
-          </Link>
+	return (
+		<div className='flex flex-col rounded-3xl border border-choco-100 bg-white p-5 shadow-soft'>
+			<div className='flex items-start justify-between gap-3'>
+				<div className='min-w-0'>
+					<p className='truncate text-base font-semibold text-choco-900'>{site.domain}</p>
+					<p className='mt-0.5 text-xs text-choco-500'>
+						Scanned {timeAgo(latest.created_at)} · {site.scanCount} scan{site.scanCount === 1 ? '' : 's'}
+					</p>
+				</div>
+				<div className='text-right'>
+					<p className={`text-3xl font-bold leading-none ${scoreTone(latest.overall_score)}`}>
+						{latest.overall_score}
+					</p>
+					{delta !== null && (
+						<p
+							className={`mt-1 text-xs font-medium ${
+								delta > 0 ? 'text-green-700' : delta < 0 ? 'text-red-700' : 'text-choco-400'
+							}`}>
+							{delta > 0 ? '▲ +' : delta < 0 ? '▼ ' : ''}
+							{delta === 0 ? 'no change' : delta} since last scan
+						</p>
+					)}
+				</div>
+			</div>
 
-          <Link
-            href="/history"
-            className="bg-white rounded-xl shadow-soft p-6 border border-choco-100 hover:shadow-md transition group"
-          >
-            <div className="text-2xl mb-2">📊</div>
-            <h3 className="font-semibold text-choco-900 group-hover:text-choco-700 transition">
-              View History
-            </h3>
-            <p className="text-sm text-choco-600 mt-1">
-              Review all your past scans
-            </p>
-          </Link>
+			<div className='mt-4 grid grid-cols-3 gap-2 text-center'>
+				{[
+					{ label: 'Clarity', value: latest.human_score },
+					{ label: 'AI', value: latest.ai_score },
+					{ label: 'Technical', value: latest.technical_score },
+				].map((m) => (
+					<div key={m.label} className='rounded-xl bg-cream-50 py-2'>
+						<p className='text-[10px] font-semibold uppercase tracking-wide text-choco-500'>{m.label}</p>
+						<p className={`text-sm font-semibold ${m.value == null ? 'text-choco-400' : scoreTone(m.value)}`}>
+							{m.value ?? '—'}
+						</p>
+					</div>
+				))}
+			</div>
 
-          {/* Settings card hidden until there is a settings page. */}
-        </div>
-      </div>
-      <SiteFooter />
-    </div>
-  );
+			{issues.total > 0 && (
+				<div className='mt-4'>
+					<div className='mb-1 flex justify-between text-xs text-choco-600'>
+						<span>{issues.left === 0 ? 'All fixes done' : `${issues.left} fix${issues.left === 1 ? '' : 'es'} left`}</span>
+						<span>
+							{issues.done}/{issues.total}
+						</span>
+					</div>
+					<div className='h-1.5 w-full rounded-full bg-choco-100'>
+						<div
+							className='h-1.5 rounded-full bg-green-600'
+							style={{ width: `${(issues.done / issues.total) * 100}%` }}
+						/>
+					</div>
+				</div>
+			)}
+
+			<div className='mt-5 flex gap-2'>
+				<Link
+					href={`/scan/${latest.id}`}
+					className='flex-1 rounded-xl bg-choco-900 px-4 py-2 text-center text-sm font-semibold text-cream-50 transition hover:bg-choco-800'>
+					Open report
+				</Link>
+				{canRescan ? (
+					<Link
+						href={`/scan?url=${encodeURIComponent(latest.url)}`}
+						className='rounded-xl border border-choco-200 px-4 py-2 text-sm font-medium text-choco-800 transition hover:border-choco-400'>
+						Re-scan
+					</Link>
+				) : (
+					<Link
+						href='/pricing'
+						title='Re-scans are part of the paid plans'
+						className='rounded-xl border border-choco-200 px-4 py-2 text-sm font-medium text-choco-500 transition hover:border-choco-400 hover:text-choco-800'>
+						Re-scan 🔒
+					</Link>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function FirstScan() {
+	const router = useRouter();
+	const [url, setUrl] = useState('');
+
+	const go = (e: React.FormEvent) => {
+		e.preventDefault();
+		const v = url.trim();
+		router.push(v ? `/scan?url=${encodeURIComponent(v)}` : '/scan');
+	};
+
+	return (
+		<div className='rounded-3xl border border-choco-100 bg-white p-8 text-center shadow-soft sm:p-12'>
+			<p className='text-3xl'>🔍</p>
+			<h2 className='mt-3 text-xl font-semibold text-choco-900'>Scan your first website</h2>
+			<p className='mx-auto mt-2 max-w-md text-sm text-choco-600'>
+				See what a first-time visitor and an AI assistant understand about your site, and get the
+				exact fixes.
+			</p>
+			<form onSubmit={go} className='mx-auto mt-6 flex max-w-md flex-col gap-2 sm:flex-row'>
+				<input
+					type='text'
+					inputMode='url'
+					value={url}
+					onChange={(e) => setUrl(e.target.value)}
+					placeholder='yourwebsite.com'
+					aria-label='Website address'
+					className='flex-1 rounded-full border border-choco-200 bg-cream-50 px-4 py-2.5 text-sm text-choco-900 placeholder:text-choco-400 focus:border-choco-400 focus:outline-none focus:ring-1 focus:ring-choco-400'
+				/>
+				<button
+					type='submit'
+					className='rounded-full bg-choco-900 px-6 py-2.5 text-sm font-semibold text-cream-50 transition hover:bg-choco-800'>
+					Scan it
+				</button>
+			</form>
+		</div>
+	);
 }
