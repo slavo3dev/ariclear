@@ -16,6 +16,7 @@ import {
 	type AnalyzeModelReport,
 } from '@/lib/analysis/scanRow';
 import { runTechnicalChecks } from '@/lib/analysis/technicalChecks';
+import { describeFetchFailure } from '@/lib/analysis/fetchFailure';
 import { safeFetch, UnsafeUrlError } from '@/lib/security/safeFetch';
 import { createLogger, errorCode } from '@/lib/logger';
 
@@ -205,7 +206,7 @@ export async function fetchPage(url: string): Promise<string> {
 			},
 		});
 		if (!res.ok) {
-			throw new ScanError(`Failed to fetch URL (status ${res.status}).`, 'fetch', 400);
+			throw new ScanError(describeFetchFailure(res.status).message, 'fetch', 400);
 		}
 		return res.body;
 	} catch (e) {

@@ -322,6 +322,8 @@ export function DemoScanSection({
 				const body = await res.json().catch(() => ({}));
 				if (res.status === 429) {
 					setErrorMsg('Too many scans — try again in a minute.');
+				} else if (body?.errorCode === 'SITE_BLOCKED') {
+					setErrorMsg(body.error);
 				} else if (body?.errorCode === 'FETCH_ERROR') {
 					setErrorMsg("Couldn't reach that URL. Try your homepage.");
 				} else {

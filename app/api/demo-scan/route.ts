@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { safeFetch, UnsafeUrlError } from '@/lib/security/safeFetch';
+import { describeFetchFailure } from '@/lib/analysis/fetchFailure';
 import { clientIp, rateLimitAll } from '@/lib/security/rateLimit';
 import { extractPageContent, pageAsText } from '@/lib/analysis/extractPage';
 import { fence, UNTRUSTED_RULE } from '@/lib/analysis/untrusted';
@@ -150,8 +151,12 @@ export async function POST(req: NextRequest) {
 			},
 		});
 		if (!fetchRes.ok) {
+			const failure = describeFetchFailure(fetchRes.status);
 			return NextResponse.json(
-				{ error: 'Could not fetch that URL', errorCode: 'FETCH_ERROR' },
+				{
+					error: failure.short,
+					errorCode: failure.kind === 'blocked' ? 'SITE_BLOCKED' : 'FETCH_ERROR',
+				},
 				{ status: 422 },
 			);
 		}
