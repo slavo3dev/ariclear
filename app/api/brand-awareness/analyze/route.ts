@@ -4,10 +4,19 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAriClearServer } from "@/lib/supabase/auth/server";
 import { safeFetch } from "@/lib/security/safeFetch";
 import { rateLimit } from "@/lib/security/rateLimit";
+import { extractPageContent, pageAsText } from "@/lib/analysis/extractPage";
+import { fence, UNTRUSTED_RULE } from "@/lib/analysis/untrusted";
+import { createLogger, errorCode } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
+const log = createLogger("brand-awareness");
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Model is configurable so it can change without a code edit.
+// Current Claude models reject `temperature` and think before answering, so
+// the request below sends neither temperature nor a small max_tokens.
+const BRAND_MODEL = process.env.ANTHROPIC_BRAND_MODEL || "claude-opus-5-5";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,43 +126,9 @@ async function scrapeWebsite(url: string): Promise<string | null> {
 
     if (!res.ok) return null;
 
-    const html = res.body;
-
-    // Extract meaningful text — title, meta description, h1-h3, hero-ish paragraphs
-    const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ?? "";
-    const metaDesc =
-      html
-        .match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
-        ?.[1]
-        ?.trim() ?? "";
-    const ogDesc =
-      html
-        .match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
-        ?.[1]
-        ?.trim() ?? "";
-
-    // Strip scripts, styles, nav, footer, SVG
-    const stripped = html
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<nav[\s\S]*?<\/nav>/gi, "")
-      .replace(/<footer[\s\S]*?<\/footer>/gi, "")
-      .replace(/<svg[\s\S]*?<\/svg>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-
-    // Take the first 3000 chars of visible text — enough for hero + above fold
-    const visibleText = stripped.slice(0, 3000);
-
-    return [
-      title ? `PAGE TITLE: ${title}` : "",
-      metaDesc ? `META DESCRIPTION: ${metaDesc}` : "",
-      ogDesc && ogDesc !== metaDesc ? `OG DESCRIPTION: ${ogDesc}` : "",
-      `VISIBLE TEXT (above fold):\n${visibleText}`,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    // Same extractor as every other feature; first 3000 chars of body text
+    // is enough for the hero and above-the-fold copy.
+    return pageAsText(extractPageContent(res.body, { maxBodyChars: 3000 }));
   } catch {
     return null;
   }
@@ -219,7 +194,7 @@ function buildSystemPrompt(
 ═══════════════════════════════════════════════════════
 WEBSITE CONTENT (scraped from ${websiteUrl})
 ═══════════════════════════════════════════════════════
-${websiteContent}
+${fence("website", websiteContent)}
 
 CRITICAL: Cross-reference everything in the brand description against this actual website content.
 If the website says something different from the description — that IS a red flag.
@@ -247,10 +222,7 @@ AriClear helps founders and small businesses understand if their brand is clear 
 ═══════════════════════════════════════════════════════
 BUSINESS BEING ANALYZED
 ═══════════════════════════════════════════════════════
-Name: ${businessName}
-Description: ${businessDescription}
-Target Audience: ${targetAudience}
-Active Platforms: ${platformList}
+${fence("business_details", `Name: ${businessName}\nDescription: ${businessDescription}\nTarget Audience: ${targetAudience}\nActive Platforms: ${platformList}`)}
 ${websiteSection}
 
 ═══════════════════════════════════════════════════════
@@ -425,6 +397,7 @@ Return ONLY valid JSON. No markdown, no backticks, no preamble.
 }
 
 ABSOLUTE RULES:
+0. ${UNTRUSTED_RULE}
 1. Zero generic advice. Every sentence must reference THIS specific business.
 2. Quote their actual description or website text when calling something out.
 3. Null values in entityExtraction are honest — use them when nothing is extractable.
@@ -450,7 +423,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const limit = rateLimit(`brand:${user.id}`, 5, 60_000);
+    const limit = await rateLimit(`brand:${user.id}`, 5, 60_000);
     if (!limit.ok) {
       return NextResponse.json(
         { error: "Too many analyses. Please wait a moment." },
@@ -458,7 +431,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const data = (await req.json()) as RequestData;
+    const data = ((await req.json().catch(() => null)) ?? {}) as RequestData;
     const { businessName, businessDescription, targetAudience, websiteUrl, platforms } = data;
 
     // ── Validation ──────────────────────────────────────────────────────────
@@ -496,8 +469,6 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log("🔍 AriClear brand analysis starting for:", businessName);
-
     // ── Platforms ───────────────────────────────────────────────────────────
     const activePlatforms = Object.entries(platforms ?? {}).filter(
       ([, value]) => value && value.trim() !== ""
@@ -510,9 +481,7 @@ export async function POST(req: Request) {
     // ── Website Scrape ──────────────────────────────────────────────────────
     let websiteContent: string | null = null;
     if (websiteUrl?.trim()) {
-      console.log("🌐 Scraping website:", websiteUrl);
       websiteContent = await scrapeWebsite(websiteUrl.trim());
-      console.log(websiteContent ? "✅ Website scraped successfully" : "⚠️ Website scrape failed");
     }
 
     // ── Claude API Call ─────────────────────────────────────────────────────
@@ -539,14 +508,19 @@ export async function POST(req: Request) {
     );
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2500,
-      temperature: 0.1,
+      model: BRAND_MODEL,
+      max_tokens: 16000,
       system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [{ role: "user", content: fence("request", userMessage) }],
     });
 
-    console.log("✅ Claude response received");
+    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
+      log.warn("model stopped early", { reason: response.stop_reason });
+      return NextResponse.json(
+        { error: "Analysis could not be completed. Please try again.", errorCode: "AI_INCOMPLETE" },
+        { status: 502 }
+      );
+    }
 
     // ── Extract Text ────────────────────────────────────────────────────────
     const outputText = response.content
@@ -569,7 +543,7 @@ export async function POST(req: Request) {
         .trim();
       report = JSON.parse(cleaned);
     } catch {
-      console.error("Invalid JSON from analysis engine:", outputText.slice(0, 500));
+      log.error("model returned invalid JSON");
       return NextResponse.json(
         { error: "Analysis engine returned malformed data. Please try again." },
         { status: 500 }
@@ -578,7 +552,7 @@ export async function POST(req: Request) {
 
     // ── Validate Shape ──────────────────────────────────────────────────────
     if (!isReportShape(report)) {
-      console.error("Unexpected report shape:", JSON.stringify(report).slice(0, 500));
+      log.error("model returned an unexpected shape");
       return NextResponse.json(
         { error: "Analysis returned an unexpected format. Please try again." },
         { status: 500 }
@@ -610,12 +584,10 @@ export async function POST(req: Request) {
       score >= 55 ? "Weak" :
       "Critical";
 
-    console.log(`🎉 Analysis complete — ${businessName}: ${report.overallScore}/100 (${report.severityLevel})`);
-
     return NextResponse.json(report);
 
   } catch (err: any) {
-    console.error("❌ Brand analysis error:", err);
+    log.error("failed", { code: errorCode(err) });
 
     if (err?.status === 429 || err?.error?.type === "rate_limit_error") {
       return NextResponse.json(
@@ -637,8 +609,8 @@ export async function POST(req: Request) {
     }
     if (err?.status) {
       return NextResponse.json(
-        { error: `Analysis service error (${err.status}): ${err.message ?? "Unknown error"}`, errorCode: "API_ERROR" },
-        { status: err.status }
+        { error: "The analysis service returned an error. Please try again.", errorCode: "API_ERROR" },
+        { status: 502 }
       );
     }
 
