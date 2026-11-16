@@ -2,6 +2,7 @@
 // Turns either a fresh /api/analyze result or a saved `scans` row into the
 // ScanReport shape used by the results screen and the PDF.
 
+import { normalizeDomain } from '@/lib/domain';
 import type { Issue, ScanReport, Suggestion } from './types';
 
 export type ActionStep = {
@@ -151,7 +152,7 @@ export function reportFromAnalyze(
 
 	let domain = '';
 	try {
-		domain = new URL(url).hostname;
+		domain = normalizeDomain(new URL(url).hostname);
 	} catch {
 		domain = url;
 	}

@@ -24,6 +24,7 @@ import {
   EntitlementsUnavailableError,
 } from "@/lib/entitlements.server";
 import { createLogger, errorCode } from "@/lib/logger";
+import { normalizeDomain } from "@/lib/domain";
 
 export const runtime = "nodejs";
 
@@ -70,7 +71,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const domain = new URL(url).hostname;
+    // www.example.com and example.com are the same site.
+    const domain = normalizeDomain(url);
 
     // Entitlements: refuse before spending a model call. The atomic claim
     // after the model call is the real gate (see claimScan below).

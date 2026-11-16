@@ -15,6 +15,7 @@ import { extractPageContent, pageAsText } from '@/lib/analysis/extractPage';
 import { fence, UNTRUSTED_RULE } from '@/lib/analysis/untrusted';
 import { clampScore } from '@/lib/analysis/scanRow';
 import { createLogger, errorCode } from '@/lib/logger';
+import { normalizeDomain } from '@/lib/domain';
 
 export const runtime = 'nodejs';
 
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
 		);
 	}
 
-	const domain = new URL(url).hostname.replace(/^www\./, '');
+	const domain = normalizeDomain(url);
 
 	let html: string;
 	try {

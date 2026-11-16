@@ -3,6 +3,7 @@
 // the result cannot be influenced by anything the browser sends.
 
 import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
+import { normalizeDomain } from '@/lib/domain';
 import {
 	resolveEntitlements,
 	type Entitlements,
@@ -54,7 +55,13 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
 		.eq('user_id', userId);
 	if (sitesError) throw new EntitlementsUnavailableError();
 
-	const domains = (sites ?? []).map((s: { domain: string }) => s.domain);
+	// Normalised (www stripped) and de-duplicated, matching normalize_domain()
+	// in SQL, so www.example.com and example.com are one site.
+	const domains = [
+		...new Set(
+			(sites ?? []).map((s: { domain: string }) => normalizeDomain(s.domain)),
+		),
+	];
 	return resolveEntitlements(row, domains);
 }
 
