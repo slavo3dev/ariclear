@@ -7,6 +7,17 @@ import { useState } from 'react';
 
 type Answers = { what: boolean; who: boolean; next: boolean };
 
+/** A saved attempt (rewrite_tests row). */
+export type RewriteAttempt = {
+	id: string;
+	headline: string;
+	subheadline: string | null;
+	cta: string | null;
+	before_score: number;
+	after_score: number;
+	created_at: string;
+};
+
 type Result = {
 	before: number;
 	after: number;
@@ -35,12 +46,24 @@ function AnswerRow({ label, ok }: { label: string; ok: boolean }) {
 	);
 }
 
+function shortDate(iso: string) {
+	return new Date(iso).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	});
+}
+
 export function RewriteTester({
 	scanId,
 	initial,
+	history = [],
 }: {
 	scanId: string;
 	initial: { headline: string; subheadline: string; cta: string };
+	/** Earlier attempts for this scan, newest first. */
+	history?: RewriteAttempt[];
 }) {
 	const [headline, setHeadline] = useState(initial.headline);
 	const [subheadline, setSubheadline] = useState(initial.subheadline);
@@ -48,7 +71,7 @@ export function RewriteTester({
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [result, setResult] = useState<Result | null>(null);
-	const [attempts, setAttempts] = useState<number[]>([]);
+	const [attempts, setAttempts] = useState<RewriteAttempt[]>(history);
 
 	const run = async () => {
 		if (!headline.trim() || loading) return;
@@ -64,12 +87,31 @@ export function RewriteTester({
 			if (!res.ok) throw new Error(json.error ?? 'Scoring failed');
 			const r = json.result as Result;
 			setResult(r);
-			setAttempts((a) => [...a, r.after]);
+			const saved = json.saved as { id: string; created_at: string } | null;
+			setAttempts((a) => [
+				{
+					id: saved?.id ?? `local-${Date.now()}`,
+					headline,
+					subheadline: subheadline || null,
+					cta: cta || null,
+					before_score: r.before,
+					after_score: r.after,
+					created_at: saved?.created_at ?? new Date().toISOString(),
+				},
+				...a,
+			]);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : 'Scoring failed');
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	const loadAttempt = (a: RewriteAttempt) => {
+		setHeadline(a.headline);
+		setSubheadline(a.subheadline ?? '');
+		setCta(a.cta ?? '');
+		setResult(null);
 	};
 
 	const useImproved = () => {
@@ -248,17 +290,49 @@ export function RewriteTester({
 						</button>
 					</div>
 
-					{attempts.length > 1 && (
-						<p className='text-xs text-choco-500'>
-							Your attempts: {attempts.join(' → ')}
-						</p>
-					)}
-
 					<p className='text-[11px] text-choco-400'>
 						{result.baselineSource === 'live'
 							? 'Both versions were scored together on first-screen copy only, so the comparison is fair. This is not your full scan score.'
 							: 'Your live page could not be read, so "Today" uses your saved clarity score. Compare with care.'}
 					</p>
+				</div>
+			)}
+			{attempts.length > 0 && (
+				<div className='mt-5 border-t border-choco-100 pt-4'>
+					<p className='mb-2 text-[10px] font-semibold uppercase tracking-widest text-choco-500'>
+						Your attempts ({attempts.length})
+					</p>
+					<ul className='space-y-1.5'>
+						{attempts.slice(0, 10).map((a) => {
+							const delta = a.after_score - a.before_score;
+							return (
+								<li key={a.id}>
+									<button
+										type='button'
+										onClick={() => loadAttempt(a)}
+										title='Load this copy into the form'
+										className='flex w-full items-center gap-3 rounded-xl bg-cream-50 px-3 py-2 text-left ring-1 ring-choco-100 transition hover:ring-choco-300'>
+										<span className='shrink-0 text-xs font-bold tabular-nums text-choco-900'>
+											{a.before_score} → {a.after_score}
+										</span>
+										<span
+											className={`shrink-0 text-xs font-semibold tabular-nums ${
+												delta > 0 ? 'text-green-700' : delta < 0 ? 'text-red-700' : 'text-choco-500'
+											}`}>
+											{delta > 0 ? '+' : ''}
+											{delta}
+										</span>
+										<span className='min-w-0 flex-1 truncate text-xs text-choco-700'>
+											{a.headline}
+										</span>
+										<span className='shrink-0 text-[10px] text-choco-400'>
+											{shortDate(a.created_at)}
+										</span>
+									</button>
+								</li>
+							);
+						})}
+					</ul>
 				</div>
 			)}
 		</div>

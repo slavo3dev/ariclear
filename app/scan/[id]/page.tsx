@@ -4,10 +4,11 @@
 
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { Navbar, SiteFooter } from '@ariclear/components';
 import { ScanResultsClient, type ScanAccess } from './ScanResultsClient';
+import type { RewriteAttempt } from './RewriteTester';
+import type { ChecklistEntry, ScanIssue } from './IssuesChecklist';
 import { getEntitlements } from '@/lib/entitlements.server';
 
 // A user's private report: never indexed, no canonical inherited from /scan.
@@ -45,19 +46,12 @@ export type Scan = {
 	suggested_cta: string | null;
 	action_plan: ActionStep[];
 	ai_prompt: string | null;
+	issues: ScanIssue[] | null;
+	checklist: ChecklistEntry[] | null;
+	suggestions: string[] | null;
+	technical_score: number | null;
 	created_at: string;
 };
-
-// ─── Supabase server client ───────────────────────────────────────────────────
-
-async function getSupabase() {
-	const cookieStore = await cookies();
-	return createServerClient(
-		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_URL!,
-		process.env.NEXT_PUBLIC_SUPABASE_ARI_CLEAR_ANON_KEY!,
-		{ cookies: { get: (name) => cookieStore.get(name)?.value } },
-	);
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -67,7 +61,7 @@ export default async function ScanResultPage({
 	params: Promise<{ id: string }>;
 }) {
 	const { id } = await params;
-	const supabase = await getSupabase();
+	const supabase = await supabaseAriClearServer();
 
 	const {
 		data: { user },
@@ -114,11 +108,27 @@ export default async function ScanResultPage({
 		// Show the scan with paid sections locked rather than failing the page.
 	}
 
+	// Earlier "Test your rewrite" attempts (RLS: own rows only).
+	let rewriteHistory: RewriteAttempt[] = [];
+	if (access.features.rewriteTest) {
+		const { data } = await supabase
+			.from('rewrite_tests')
+			.select('id, headline, subheadline, cta, before_score, after_score, created_at')
+			.eq('scan_id', scan.id)
+			.order('created_at', { ascending: false })
+			.limit(20);
+		rewriteHistory = (data ?? []) as RewriteAttempt[];
+	}
+
 	return (
 		<div className='flex min-h-screen flex-col bg-cream-50'>
 			<Navbar />
 			<main className='mx-auto w-full max-w-2xl flex-1 px-4 py-10'>
-				<ScanResultsClient scan={scan as Scan} access={access} />
+				<ScanResultsClient
+					scan={scan as Scan}
+					access={access}
+					rewriteHistory={rewriteHistory}
+				/>
 			</main>
 			<SiteFooter />
 		</div>

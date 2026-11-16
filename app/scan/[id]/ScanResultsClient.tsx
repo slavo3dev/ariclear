@@ -5,7 +5,8 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan, ActionStep } from './page';
-import { RewriteTester } from './RewriteTester';
+import { RewriteTester, type RewriteAttempt } from './RewriteTester';
+import { IssuesChecklist } from './IssuesChecklist';
 import { TechnicalChecks } from './TechnicalChecks';
 import { LockedFeature, PdfDownloadButton } from './PaidFeature';
 import type { Feature } from '@/lib/entitlements';
@@ -143,9 +144,11 @@ function Tag({ children }: { children: React.ReactNode }) {
 export function ScanResultsClient({
 	scan,
 	access,
+	rewriteHistory = [],
 }: {
 	scan: Scan;
 	access: ScanAccess;
+	rewriteHistory?: RewriteAttempt[];
 }) {
 	const router = useRouter();
 	const [promptCopied, setPromptCopied] = useState(false);
@@ -202,6 +205,13 @@ export function ScanResultsClient({
 					</div>
 				</div>
 			</div>
+
+			{/* Issues with fixes; ticks are saved */}
+			<IssuesChecklist
+				scanId={scan.id}
+				issues={Array.isArray(scan.issues) ? scan.issues : []}
+				checklist={Array.isArray(scan.checklist) ? scan.checklist : []}
+			/>
 
 			{/* Human clarity */}
 			<Section title='Human Clarity'>
@@ -269,6 +279,23 @@ export function ScanResultsClient({
 							</div>
 						</div>
 					)}
+					{Array.isArray(scan.suggestions) && scan.suggestions.length > 0 && (
+						<div>
+							<p className='mb-2 text-[10px] font-semibold uppercase tracking-widest text-choco-500'>
+								Structure fixes for AI
+							</p>
+							<ul className='space-y-1.5'>
+								{scan.suggestions.map((s, i) => (
+									<li
+										key={i}
+										className='flex items-start gap-2 text-sm text-choco-700'>
+										<span className='mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-choco-400' />
+										{s}
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
 				</div>
 			</Section>
 
@@ -322,6 +349,7 @@ export function ScanResultsClient({
 			{access.features.rewriteTest ? (
 				<RewriteTester
 					scanId={scan.id}
+					history={rewriteHistory}
 					initial={{
 						headline: scan.suggested_headline ?? '',
 						subheadline: scan.suggested_subheadline ?? '',

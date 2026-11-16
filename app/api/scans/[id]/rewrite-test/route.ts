@@ -11,6 +11,7 @@ import { safeFetch } from '@/lib/security/safeFetch';
 import { extractPageContent } from '@/lib/analysis/extractPage';
 import { rateLimitAll } from '@/lib/security/rateLimit';
 import { createLogger, errorCode } from '@/lib/logger';
+import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
 import { featureDenial } from '@/lib/entitlements';
 import { getEntitlements } from '@/lib/entitlements.server';
 
@@ -214,22 +215,52 @@ export async function POST(
 		}
 
 		const baselineFromLive = currentCopy !== null;
-		const before = baselineFromLive ? clamp(out.current.score) : scan.human_score ?? clamp(out.current.score);
+		const before = clamp(
+			baselineFromLive ? out.current.score : (scan.human_score ?? out.current.score),
+		);
 		const after = clamp(out.candidate.score);
 
-		return NextResponse.json({
-			result: {
-				before,
-				after,
-				delta: after - before,
-				baselineSource: baselineFromLive ? 'live' : 'saved',
-				beforeAnswers: out.current.answers,
-				afterAnswers: out.candidate.answers,
-				whatItSays: out.candidate.whatItSays,
-				remainingIssues: out.candidate.remainingIssues.slice(0, 3).map(String),
-				improved: out.candidate.improved,
+		const result = {
+			before,
+			after,
+			delta: after - before,
+			baselineSource: (baselineFromLive ? 'live' : 'saved') as 'live' | 'saved',
+			beforeAnswers: out.current.answers,
+			afterAnswers: out.candidate.answers,
+			whatItSays: String(out.candidate.whatItSays).slice(0, 500),
+			remainingIssues: out.candidate.remainingIssues.slice(0, 3).map((x) => String(x).slice(0, 300)),
+			improved: {
+				headline: String(out.candidate.improved.headline).slice(0, 200),
+				subheadline: String(out.candidate.improved.subheadline).slice(0, 400),
+				cta: String(out.candidate.improved.cta).slice(0, 80),
 			},
-		});
+		};
+
+		// Keep the attempt so the user can compare tries later. A failed save
+		// must not cost the user the result they just paid for.
+		let saved: { id: string; created_at: string } | null = null;
+		const { data: row, error: saveError } = await supabaseAriClearAdmin()
+			.from('rewrite_tests')
+			.insert({
+				scan_id: id,
+				user_id: user.id,
+				headline,
+				subheadline: subheadline || null,
+				cta: cta || null,
+				before_score: result.before,
+				after_score: result.after,
+				baseline_source: result.baselineSource,
+				result,
+			})
+			.select('id, created_at')
+			.single();
+		if (saveError) {
+			log.warn('attempt not saved', { code: saveError.code ?? 'unknown' });
+		} else {
+			saved = row;
+		}
+
+		return NextResponse.json({ result, saved });
 	} catch (err: any) {
 		if (err?.status === 429) {
 			return NextResponse.json(
