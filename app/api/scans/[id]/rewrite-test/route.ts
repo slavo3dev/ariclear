@@ -9,11 +9,14 @@ import OpenAI from 'openai';
 import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { safeFetch } from '@/lib/security/safeFetch';
 import { extractPageContent } from '@/lib/analysis/extractPage';
-import { rateLimit } from '@/lib/security/rateLimit';
+import { rateLimitAll } from '@/lib/security/rateLimit';
+import { createLogger, errorCode } from '@/lib/logger';
 import { featureDenial } from '@/lib/entitlements';
 import { getEntitlements } from '@/lib/entitlements.server';
 
 export const runtime = 'nodejs';
+
+const log = createLogger('rewrite-test');
 
 type Answers = { what: boolean; who: boolean; next: boolean };
 type ModelOut = {
@@ -103,12 +106,14 @@ export async function POST(
 		);
 	}
 
-	const minute = rateLimit(`rewrite:min:${user.id}`, 6, 60_000);
-	const day = rateLimit(`rewrite:day:${user.id}`, 60, 24 * 60 * 60_000);
-	if (!minute.ok || !day.ok) {
+	const limit = await rateLimitAll([
+		[`rewrite:min:${user.id}`, 6, 60_000],
+		[`rewrite:day:${user.id}`, 60, 24 * 60 * 60_000],
+	]);
+	if (!limit.ok) {
 		return NextResponse.json(
 			{ error: 'Too many tests. Please wait a moment.' },
-			{ status: 429 },
+			{ status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } },
 		);
 	}
 
@@ -232,7 +237,7 @@ export async function POST(
 				{ status: 429 },
 			);
 		}
-		console.error('[rewrite-test] failed:', err?.status ?? err?.name ?? 'unknown');
+		log.error('failed', { code: errorCode(err) });
 		return NextResponse.json({ error: 'Scoring failed. Try again.' }, { status: 500 });
 	}
 }

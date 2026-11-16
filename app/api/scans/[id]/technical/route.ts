@@ -9,6 +9,9 @@ import { UnsafeUrlError } from '@/lib/security/safeFetch';
 import { rateLimit } from '@/lib/security/rateLimit';
 import { featureDenial } from '@/lib/entitlements';
 import { getEntitlements } from '@/lib/entitlements.server';
+import { createLogger, errorCode } from '@/lib/logger';
+
+const log = createLogger('technical');
 
 export const runtime = 'nodejs';
 
@@ -41,7 +44,7 @@ export async function GET(
 		);
 	}
 
-	const limit = rateLimit(`technical:${user.id}`, 10, 60_000);
+	const limit = await rateLimit(`technical:${user.id}`, 10, 60_000);
 	if (!limit.ok) {
 		return NextResponse.json(
 			{ error: 'Too many checks. Please wait a moment.' },
@@ -67,10 +70,7 @@ export async function GET(
 		if (err instanceof UnsafeUrlError) {
 			return NextResponse.json({ error: err.message }, { status: 400 });
 		}
-		console.error(
-			'[technical] failed:',
-			err instanceof Error ? err.name : 'unknown',
-		);
+		log.error('failed', { code: errorCode(err) });
 		return NextResponse.json(
 			{ error: 'Could not fetch that site to run the checks.' },
 			{ status: 502 },

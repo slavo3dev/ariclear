@@ -8,6 +8,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
 import { clientIp, rateLimit } from '@/lib/security/rateLimit';
 import { isPaidTier, PAID_PLANS } from '@/lib/entitlements';
+import { createLogger, errorCode } from '@/lib/logger';
+
+const log = createLogger('plan-request');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,7 +21,7 @@ function text(v: unknown, max: number): string | null {
 }
 
 export async function POST(req: NextRequest) {
-	const limit = rateLimit(`plan-request:${clientIp(req)}`, 5, 10 * 60_000);
+	const limit = await rateLimit(`plan-request:${clientIp(req)}`, 5, 10 * 60_000);
 	if (!limit.ok) {
 		return NextResponse.json(
 			{ error: 'Too many requests. Please try again later.' },
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
 			});
 
 		if (error) {
-			console.error('[plan-request] insert failed:', error.code ?? 'unknown');
+			log.error('insert failed', { code: error.code ?? 'unknown' });
 			return NextResponse.json(
 				{ error: 'Failed to save request' },
 				{ status: 500 },
@@ -80,8 +83,8 @@ export async function POST(req: NextRequest) {
 		}
 
 		return NextResponse.json({ success: true }, { status: 201 });
-	} catch {
-		console.error('[plan-request] unexpected failure');
+	} catch (err) {
+		log.error('unexpected failure', { code: errorCode(err) });
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 },

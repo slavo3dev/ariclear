@@ -9,6 +9,9 @@ import { rateLimit } from '@/lib/security/rateLimit';
 import { isPaidTier, PAID_PLANS, type PaidTier } from '@/lib/entitlements';
 import { getEntitlements } from '@/lib/entitlements.server';
 import { appUrl, priceIdFor, stripe } from '@/lib/billing/stripe';
+import { createLogger, errorCode } from '@/lib/logger';
+
+const log = createLogger('billing/checkout');
 
 export const runtime = 'nodejs';
 
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
 		);
 	}
 
-	const limit = rateLimit(`checkout:${user.id}`, 5, 60_000);
+	const limit = await rateLimit(`checkout:${user.id}`, 5, 60_000);
 	if (!limit.ok) {
 		return NextResponse.json(
 			{ error: 'Too many attempts. Please wait a moment.' },
@@ -79,10 +82,7 @@ export async function POST(req: NextRequest) {
 		}
 		return NextResponse.json({ url: session.url });
 	} catch (err) {
-		console.error(
-			'[billing/checkout] failed:',
-			err instanceof Error ? err.name : 'unknown',
-		);
+		log.error('failed', { code: errorCode(err) });
 		return NextResponse.json(
 			{ error: 'Could not start checkout. Please try again.' },
 			{ status: 500 },
