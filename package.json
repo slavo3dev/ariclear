@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "eval": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env --import ./scripts/eval/register.mjs scripts/eval/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.4.0",

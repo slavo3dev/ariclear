@@ -46,3 +46,6 @@ google-tts-credentials.json
 
 # supabase CLI local state
 supabase/.temp/
+
+# score eval output (scripts/eval/run.ts)
+/scripts/eval/results/

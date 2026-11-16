@@ -1,0 +1,42 @@
+{
+	"_about": "Golden set for scripts/eval/run.ts. 'expect' is a rough overall-score tier (low <= 39, mid 40-64, high >= 65), our judgement of what an honest score looks like. Mismatches are reported but do not fail the run. Review and edit freely.",
+	"urls": [
+		{ "url": "https://stripe.com", "category": "saas", "expect": "high", "note": "Clear product, audience and CTA" },
+		{ "url": "https://linear.app", "category": "saas", "expect": "high", "note": "Short, specific hero" },
+		{ "url": "https://mailchimp.com", "category": "saas", "expect": "high", "note": "Email marketing, says so plainly" },
+		{ "url": "https://calendly.com", "category": "saas", "expect": "high", "note": "Scheduling, one clear job" },
+		{ "url": "https://www.squarespace.com", "category": "saas", "expect": "high", "note": "Website builder" },
+		{ "url": "https://www.dropbox.com", "category": "saas", "expect": "mid", "note": "Broad positioning beyond storage" },
+		{ "url": "https://www.notion.com", "category": "saas", "expect": "mid", "note": "Broad 'workspace' positioning" },
+		{ "url": "https://zapier.com", "category": "saas", "expect": "high", "note": "Automation, concrete examples" },
+		{ "url": "https://basecamp.com", "category": "saas", "expect": "high", "note": "Opinionated, plain-language copy" },
+		{ "url": "https://gumroad.com", "category": "saas", "expect": "mid", "note": "Creator commerce, playful copy" },
+
+		{ "url": "https://www.hubspot.com", "category": "enterprise", "expect": "mid", "note": "Many products on one page" },
+		{ "url": "https://www.atlassian.com", "category": "enterprise", "expect": "mid", "note": "Product suite, generic hero" },
+		{ "url": "https://www.salesforce.com", "category": "enterprise", "expect": "mid", "note": "Buzzword-heavy, AI messaging" },
+		{ "url": "https://www.ibm.com/us-en", "category": "enterprise", "expect": "low", "note": "No single offer above the fold (ibm.com root returns 404 to bots)" },
+		{ "url": "https://www.accenture.com", "category": "enterprise", "expect": "low", "note": "Consulting buzzwords" },
+		{ "url": "https://www.deloitte.com", "category": "enterprise", "expect": "low", "note": "Generic insights hub" },
+
+		{ "url": "https://www.chipotle.com", "category": "local-food", "expect": "mid", "note": "Restaurant chain: menu, locations, order" },
+		{ "url": "https://www.sweetgreen.com", "category": "local-food", "expect": "mid", "note": "Order-first restaurant site" },
+
+		{ "url": "https://www.allbirds.com", "category": "ecommerce", "expect": "mid", "note": "Product shop, promo-led hero" },
+		{ "url": "https://www.everlane.com", "category": "ecommerce", "expect": "mid", "note": "Clothing shop, promo-led hero" },
+		{ "url": "https://casper.com", "category": "ecommerce", "expect": "mid", "note": "Mattresses, promo-led hero" },
+
+		{ "url": "https://www.wikipedia.org", "category": "content", "expect": "mid", "note": "Portal page, no marketing copy" },
+		{ "url": "https://www.khanacademy.org", "category": "nonprofit", "expect": "high", "note": "Free learning, clear audience" },
+		{ "url": "https://www.bbc.com", "category": "content", "expect": "mid", "note": "News homepage, changes hourly" },
+
+		{ "url": "https://vercel.com", "category": "devtools", "expect": "high", "note": "Developer platform" },
+		{ "url": "https://supabase.com", "category": "devtools", "expect": "high", "note": "Postgres backend, explicit" },
+		{ "url": "https://github.com", "category": "devtools", "expect": "mid", "note": "Signed-out marketing page" },
+
+		{ "url": "https://craigslist.org", "category": "edge-minimal", "expect": "low", "note": "Link directory, almost no copy" },
+		{ "url": "https://example.com", "category": "edge-minimal", "expect": "low", "note": "Placeholder page, should score very low" },
+
+		{ "url": "https://www.ariclear.com", "category": "self", "expect": "high", "note": "Our own homepage" }
+	]
+}
