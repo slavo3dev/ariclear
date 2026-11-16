@@ -3,7 +3,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Modal, PreorderForm } from "@ariclear/components";
 
-const PreorderContext = createContext({
+/** Which plan the contact form is about. Defaults to Centurion. */
+export type ContactPlan = "starter" | "pro" | "legion";
+
+const PreorderContext = createContext<{
+  open: (plan?: ContactPlan) => void;
+  close: () => void;
+}>({
   open: () => {},
   close: () => {},
 });
@@ -12,6 +18,7 @@ export const usePreorder = () => useContext(PreorderContext);
 
 export function PreorderProvider({ children }: { children: React.ReactNode }) {
   const [openModal, setOpenModal] = useState(false);
+  const [plan, setPlan] = useState<ContactPlan | null>(null);
 
   // Auto open on first visit
   useEffect(() => {
@@ -25,14 +32,17 @@ export function PreorderProvider({ children }: { children: React.ReactNode }) {
   return (
     <PreorderContext.Provider
       value={{
-        open: () => setOpenModal(true),
+        open: (p?: ContactPlan) => {
+          setPlan(p ?? null);
+          setOpenModal(true);
+        },
         close: () => setOpenModal(false),
       }}
     >
       {children}
 
       <Modal open={openModal} onClose={() => setOpenModal(false)}>
-        <PreorderForm onSuccess={() => setOpenModal(false)} />
+        <PreorderForm tier={plan} onSuccess={() => setOpenModal(false)} />
       </Modal>
     </PreorderContext.Provider>
   );

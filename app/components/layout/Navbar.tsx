@@ -298,6 +298,7 @@ export function Navbar() {
 														className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${getTierBadgeColor(subscription.tier)}`}>
 														{getTierLabel(
 															subscription.tier,
+															subscription.websites_limit,
 														)}
 													</span>
 												)}
@@ -567,6 +568,7 @@ export function Navbar() {
 												className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${getTierBadgeColor(subscription.tier)}`}>
 												{getTierLabel(
 													subscription.tier,
+													subscription.websites_limit,
 												)}
 											</span>
 										</div>

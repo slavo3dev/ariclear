@@ -1,5 +1,6 @@
 // POST /api/plan-request
-// "Questions about a plan?" contact form. Every request is kept as its own
+// "Questions about a plan?" contact form, and the Legion request form (more
+// sites than Centurion, price agreed by contact). Every request is kept as its own
 // row (INSERT, not upsert), so a second message from the same person is not
 // lost. plan_requests has RLS on and no policies: only the service role
 // writes or reads it.
@@ -7,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
 import { clientIp, rateLimit } from '@/lib/security/rateLimit';
-import { isPaidTier, PAID_PLANS } from '@/lib/entitlements';
+import { CUSTOM_PLAN, isPaidTier, PAID_PLANS } from '@/lib/entitlements';
 import { createLogger, errorCode } from '@/lib/logger';
 
 const log = createLogger('plan-request');
@@ -44,17 +45,14 @@ export async function POST(req: NextRequest) {
 			{ status: 400 },
 		);
 	}
-	if (!isPaidTier(plan)) {
-		return NextResponse.json(
-			{ error: 'Invalid plan. Must be starter or pro.' },
-			{ status: 400 },
-		);
+	const isCustom = plan === CUSTOM_PLAN.key;
+	if (!isCustom && !isPaidTier(plan)) {
+		return NextResponse.json({ error: 'Invalid plan.' }, { status: 400 });
 	}
-	if (
-		!Number.isInteger(websites) ||
-		websites < 1 ||
-		websites > PAID_PLANS[plan].websites
-	) {
+	const [minSites, maxSites] = isCustom
+		? [CUSTOM_PLAN.minWebsites, CUSTOM_PLAN.maxWebsites]
+		: [1, PAID_PLANS[plan as keyof typeof PAID_PLANS].websites];
+	if (!Number.isInteger(websites) || websites < minSites || websites > maxSites) {
 		return NextResponse.json(
 			{ error: 'Invalid number of websites.' },
 			{ status: 400 },

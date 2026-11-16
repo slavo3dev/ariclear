@@ -12,10 +12,11 @@ import {
 	useAuth,
 	AuthModal,
 	ScanResultsEnhanced,
+	usePreorder,
 } from '@ariclear/components';
 import { getTierLabel } from '@/lib/plans';
 import { reportFromAnalyze } from '@/lib/report/build';
-import type { PublicEntitlements } from '@/lib/entitlements';
+import { CUSTOM_PLAN, PAID_PLANS, type PublicEntitlements } from '@/lib/entitlements';
 
 type ErrorCode =
 	| 'SCAN_LIMIT_REACHED'
@@ -311,6 +312,40 @@ function RateLimitBanner() {
 	);
 }
 
+function SiteLimitBanner({ message, tier }: { message: string; tier?: string }) {
+	const { open: openContact } = usePreorder();
+	const isCenturion = tier === 'pro';
+	return (
+		<div className='mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-soft'>
+			<div className='flex items-start gap-3'>
+				<span className='mt-0.5 shrink-0 text-xl'>🌐</span>
+				<div className='flex-1'>
+					<p className='text-sm font-semibold text-choco-900'>
+						Website limit reached
+					</p>
+					<p className='mt-1 text-sm text-choco-700'>{message}</p>
+					<div className='mt-3'>
+						{isCenturion ? (
+							<Button
+								type='button'
+								onClick={() => openContact('legion')}
+								className='rounded-xl bg-choco-900 px-4 py-2 text-sm font-semibold text-cream-50 hover:bg-choco-800'>
+								Get a {CUSTOM_PLAN.label} quote for more sites
+							</Button>
+						) : (
+							<Link
+								href='/#pricing'
+								className='text-sm font-semibold text-choco-900 underline hover:text-choco-700'>
+								See {PAID_PLANS.pro.label} ({PAID_PLANS.pro.websites} websites)
+							</Link>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 function GenericErrorBanner({ message }: { message: string }) {
 	return (
 		<div className='mt-6 rounded-2xl border border-choco-200 bg-white p-4 shadow-soft'>
@@ -410,7 +445,11 @@ export default function ScanPage() {
 				if (res.status === 403 && json?.requiresUpgrade) {
 					if (json.errorCode === 'SCAN_LIMIT_REACHED') {
 						// Sites are full, but existing sites can still be re-scanned.
-						setResult({ error: json.message ?? json.error });
+						setResult({
+							error: json.message ?? json.error,
+							errorCode: 'SCAN_LIMIT_REACHED',
+							tier: json.tier,
+						});
 						return;
 					}
 					setLimitMessage(json.message);
@@ -450,6 +489,9 @@ export default function ScanPage() {
 
 	const renderPostAnalyzeError = (r: AnalyzeResponse) => {
 		if (r.errorCode === 'RATE_LIMIT') return <RateLimitBanner />;
+		if (r.errorCode === 'SCAN_LIMIT_REACHED') {
+			return <SiteLimitBanner message={r.error ?? ''} tier={r.tier} />;
+		}
 		return (
 			<GenericErrorBanner
 				message={r.error ?? 'Something went wrong. Please try again.'}
@@ -566,7 +608,7 @@ export default function ScanPage() {
 								)}
 								{!limitLoading && limitStatus && (
 									<p className='mt-3 text-[11px] text-choco-400'>
-										{getTierLabel(limitStatus.tier)} ·{' '}
+										{getTierLabel(limitStatus.tier, limitStatus.limit)} ·{' '}
 										{limitStatus.current} / {limitStatus.limit}{' '}
 										website{limitStatus.limit !== 1 ? 's' : ''}{' '}
 										used

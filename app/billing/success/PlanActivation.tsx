@@ -69,7 +69,7 @@ export function PlanActivation() {
 			<div className='rounded-3xl border border-green-200 bg-white p-8 text-center shadow-sm'>
 				<p className='text-4xl'>🎉</p>
 				<h1 className='mt-3 text-2xl font-semibold text-choco-900'>
-					You&apos;re a {getTierLabel(state.ent.tier)}
+					You&apos;re a {getTierLabel(state.ent.tier, state.ent.websitesLimit)}
 				</h1>
 				<p className='mt-2 text-sm text-choco-700'>
 					{state.ent.websitesLimit} website

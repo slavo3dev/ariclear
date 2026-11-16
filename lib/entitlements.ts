@@ -41,6 +41,23 @@ export const PAID_PLANS: Record<
 	pro: { label: 'Centurion', priceUsd: 99, websites: 3 },
 };
 
+/**
+ * Legion: more sites than Centurion, price agreed by contact (the plan
+ * request form). Not a separate DB tier: a Legion customer is a 'pro'
+ * account with a higher user_subscriptions.websites_limit, set by hand.
+ */
+export const CUSTOM_PLAN = {
+	key: 'legion',
+	label: 'Legion',
+	minWebsites: PAID_PLANS.pro.websites + 1,
+	maxWebsites: 1000,
+} as const;
+
+/** A 'pro' account with more sites than Centurion includes is a Legion account. */
+export function isLegion(tier: string | null | undefined, websitesLimit: number | null | undefined): boolean {
+	return tier === 'pro' && (websitesLimit ?? 0) > PAID_PLANS.pro.websites;
+}
+
 const FREE_FEATURES: Record<Feature, boolean> = {
 	rescan: false,
 	rewriteTest: false,
@@ -204,8 +221,8 @@ export function scanDenial(
 			errorCode: 'SCAN_LIMIT_REACHED',
 			message: `Your plan covers ${plural(ent.websitesLimit, 'website')} (${ent.domains.join(', ')}). ${
 				ent.tier === 'pro'
-					? 'Delete a site’s scans to free its slot, or contact us for more.'
-					: 'Upgrade to Centurion for 3 websites.'
+					? `Delete a site’s scans to free its slot, or ask about ${CUSTOM_PLAN.label} for more sites.`
+					: `Upgrade to Centurion for ${PAID_PLANS.pro.websites} websites.`
 			}`,
 		};
 	}

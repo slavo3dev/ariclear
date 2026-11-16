@@ -6,27 +6,43 @@ import { useState } from 'react';
 import type { FormEventHandler } from 'react';
 import { Button } from '@ariclear/components';
 import { toast } from 'react-hot-toast';
+import { CUSTOM_PLAN } from '@/lib/entitlements';
 
 const CALENDLY_URL = 'https://calendly.com/slavo3/30min';
 
+/** Site counts offered for Legion; the last one means "this many or more". */
+const LEGION_SITE_OPTIONS = [4, 5, 6, 8, 10, 15, 20, 30, 50, 100];
+
 const TIER_CONFIG = {
+	legion: {
+		label: `${CUSTOM_PLAN.label} Plan`,
+		websites: String(CUSTOM_PLAN.minWebsites),
+		siteOptions: LEGION_SITE_OPTIONS,
+		badge: `${CUSTOM_PLAN.label} · ${CUSTOM_PLAN.minWebsites}+ Websites`,
+		headline: `Get a ${CUSTOM_PLAN.label} quote`,
+		description:
+			"Need more than 3 websites? Tell us how many and we'll reply within 24 hours with a price for your team or agency.",
+		submit: 'Request a quote',
+	},
 	pro: {
 		label: 'Centurion Plan',
 		websites: '3',
-		maxWebsites: 3,
+		siteOptions: [1, 2, 3],
 		badge: 'Centurion · 3 Websites',
 		headline: 'Questions about Centurion?',
 		description:
 			"Tell us about your sites and we'll reply within 24 hours. Ready now? Buy Centurion in the pricing section: one payment covers 6 months.",
+		submit: 'Send my question',
 	},
 	starter: {
 		label: 'Gladiator Plan',
 		websites: '1',
-		maxWebsites: 1,
+		siteOptions: [1],
 		badge: 'Gladiator · 1 Website',
 		headline: 'Questions about Gladiator?',
 		description:
 			"Tell us about your site and we'll reply within 24 hours. Ready now? Buy Gladiator in the pricing section: one payment covers 6 months.",
+		submit: 'Send my question',
 	},
 } as const;
 
@@ -52,8 +68,8 @@ export function PreorderForm({
 	onSuccess?: () => void;
 	tier?: string | null;
 }) {
-	const config = TIER_CONFIG[(tier as Tier) ?? 'pro'] ?? TIER_CONFIG.pro;
-	const resolvedTier = (tier as Tier) ?? 'pro';
+	const resolvedTier: Tier = tier && tier in TIER_CONFIG ? (tier as Tier) : 'pro';
+	const config = TIER_CONFIG[resolvedTier];
 
 	const [email, setEmail] = useState('');
 	const [phone, setPhone] = useState('');
@@ -181,12 +197,11 @@ export function PreorderForm({
 						value={websites}
 						onChange={(e) => setWebsites(e.target.value)}
 						className={inputClass}>
-						{Array.from(
-							{ length: config.maxWebsites },
-							(_, i) => i + 1,
-						).map((n) => (
+						{config.siteOptions.map((n, i, all) => (
 							<option key={n} value={String(n)}>
-								{n} website{n > 1 ? 's' : ''}
+								{n}
+								{resolvedTier === 'legion' && i === all.length - 1 ? '+' : ''} website
+								{n > 1 ? 's' : ''}
 							</option>
 						))}
 					</select>
@@ -237,7 +252,7 @@ export function PreorderForm({
 				type='submit'
 				className='w-full justify-center'
 				disabled={loading}>
-				{loading ? 'Sending...' : 'Send my question'}
+				{loading ? 'Sending...' : config.submit}
 			</Button>
 
 			{/* Calendly */}

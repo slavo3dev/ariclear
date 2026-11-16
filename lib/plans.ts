@@ -3,7 +3,7 @@
 // Prices, site limits and term length come from lib/entitlements.ts.
 // DB tier keys stay stable (`starter`, `pro`); only the display names change.
 
-import { PAID_PLANS, PLAN_TERM_MONTHS, type PaidTier } from '@/lib/entitlements';
+import { CUSTOM_PLAN, isLegion, PAID_PLANS, PLAN_TERM_MONTHS, type PaidTier } from '@/lib/entitlements';
 
 export const PLANS = {
 	starter: {
@@ -31,9 +31,14 @@ const OTHER_TIERS: Record<string, { label: string; badge: string }> = {
 
 const FALLBACK_BADGE = 'bg-gray-100 text-gray-700 ring-gray-300';
 
-export function getTierLabel(tier?: string | null): string {
+/**
+ * Display name of a plan. Pass the account's site limit so a Centurion
+ * account with a custom, higher limit shows as Legion.
+ */
+export function getTierLabel(tier?: string | null, websitesLimit?: number | null): string {
 	if (!tier) return OTHER_TIERS.free.label;
 	const key = tier.toLowerCase();
+	if (isLegion(key, websitesLimit)) return CUSTOM_PLAN.label;
 	if (key in PLANS) return PLANS[key as PaidTier].label;
 	if (OTHER_TIERS[key]) return OTHER_TIERS[key].label;
 	// legacy / unknown tier names: show as-is rather than guess

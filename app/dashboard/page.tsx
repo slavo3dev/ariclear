@@ -130,7 +130,7 @@ export default function DashboardPage() {
                   subscription?.tier
                 )}`}
               >
-                {getTierLabel(subscription?.tier)}
+                {getTierLabel(subscription?.tier, subscription?.websites_limit)}
               </span>
             </div>
             {subscription?.isPaid && subscription.expiresAt && (

@@ -6,7 +6,12 @@ import {
 	usePreorder,
 	useCheckout,
 } from '@ariclear/components';
-import { FREE_LIMITS, PAID_PLANS, type PaidTier } from '@/lib/entitlements';
+import {
+	CUSTOM_PLAN,
+	FREE_LIMITS,
+	PAID_PLANS,
+	type PaidTier,
+} from '@/lib/entitlements';
 
 const plans: {
 	id: PaidTier;
@@ -326,6 +331,52 @@ export function PricingSection() {
 					})}
 				</div>
 
+				{/* Legion: more sites, price by contact */}
+				<div className='mx-auto mt-6 flex max-w-4xl flex-col gap-6 rounded-2xl border-2 border-amber-300 bg-cream-50 p-8 md:flex-row md:items-center md:justify-between'>
+					<div className='max-w-xl'>
+						<span className='inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold tracking-wide text-amber-800'>
+							For agencies &amp; teams
+						</span>
+						<h3 className='mt-4 text-2xl font-bold text-choco-900'>
+							{CUSTOM_PLAN.label}
+						</h3>
+						<p className='mt-2 text-sm text-choco-600'>
+							Everything in {PAID_PLANS.pro.label}, for{' '}
+							{CUSTOM_PLAN.minWebsites} or more websites. Priced by
+							how many sites you track.
+						</p>
+						<ul className='mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-choco-700'>
+							{[
+								`${CUSTOM_PLAN.minWebsites}+ websites`,
+								`Everything in ${PAID_PLANS.pro.label}`,
+								'Weekly re-scans of every site',
+							].map((t) => (
+								<li key={t} className='flex items-center gap-2'>
+									<span className='font-bold text-green-600'>✓</span>
+									{t}
+								</li>
+							))}
+						</ul>
+					</div>
+					<div className='shrink-0 md:text-right'>
+						<p className='text-3xl font-bold tracking-tight text-choco-900'>
+							Custom
+						</p>
+						<p className='mb-4 text-sm text-choco-500'>
+							price for your number of sites
+						</p>
+						<Button
+							type='button'
+							onClick={() => openContact('legion')}
+							className='w-full justify-center rounded-xl bg-choco-900 py-3 font-semibold text-cream-50 transition-all duration-200 hover:bg-choco-800 md:w-auto md:px-8'>
+							Get a {CUSTOM_PLAN.label} quote
+						</Button>
+						<p className='mt-2 text-xs text-choco-400'>
+							We reply within 24 hours
+						</p>
+					</div>
+				</div>
+
 				{/* Comparison note */}
 				<div className='mt-12 rounded-2xl bg-cream-50 border border-choco-100 p-6 text-center space-y-2'>
 					<p className='text-sm text-choco-700'>
@@ -356,7 +407,7 @@ export function PricingSection() {
 					Questions before you buy?{' '}
 					<button
 						type='button'
-						onClick={openContact}
+						onClick={() => openContact()}
 						className='font-semibold text-choco-800 underline hover:text-choco-600 transition-colors'>
 						Talk to us
 					</button>{' '}
