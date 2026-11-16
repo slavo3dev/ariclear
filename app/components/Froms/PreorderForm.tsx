@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import type { FormEventHandler } from 'react';
 import { Button } from '@ariclear/components';
@@ -266,9 +267,9 @@ export function PreorderForm({
 			)}
 
 			<p className='text-[10px] text-choco-400 text-center'>
-				<a href='/#pricing' className='underline hover:text-choco-200'>
+				<Link href='/#pricing' className='underline hover:text-choco-200'>
 					See plans and prices
-				</a>
+				</Link>
 			</p>
 		</form>
 	);
