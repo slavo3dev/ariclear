@@ -16,6 +16,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // Model is configurable so it can change without a code edit.
 // Current Claude models reject `temperature` and think before answering, so
 // the request below sends neither temperature nor a small max_tokens.
+// Server-side fallbacks are on (see the call below).
 const BRAND_MODEL = process.env.ANTHROPIC_BRAND_MODEL || "claude-opus-5-5";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -507,12 +508,21 @@ export async function POST(req: Request) {
       2
     );
 
-    const response = await client.messages.create({
+    // fallbacks: "default" -> if the model declines (stop_reason "refusal"),
+    // the API re-runs the same request on a suitable fallback model inside
+    // this one call. A final "refusal" means every model declined.
+    const response = await client.beta.messages.create({
       model: BRAND_MODEL,
       max_tokens: 16000,
       system: systemPrompt,
       messages: [{ role: "user", content: fence("request", userMessage) }],
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
     });
+
+    if (response.content.some((block) => block.type === "fallback")) {
+      log.info("served by fallback model", { model: response.model });
+    }
 
     if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
       log.warn("model stopped early", { reason: response.stop_reason });
