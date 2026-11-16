@@ -11,6 +11,7 @@ import {
   SiteFooter,
   useAuth
 } from "@ariclear/components";
+import { ScoreTrend } from "./ScoreTrend";
 
 type Scan = {
   id: string;
@@ -19,6 +20,7 @@ type Scan = {
   overall_score: number;
   human_score: number;
   ai_score: number;
+  technical_score: number | null;
   created_at: string;
   updated_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +48,7 @@ type LimitStatus = {
   isPaid: boolean;
   isExpired: boolean;
   canAddSite: boolean;
+  features?: { trend?: boolean };
 };
 
 function groupByDomain(scans: Scan[]): Record<string, Scan[]> {
@@ -434,6 +437,10 @@ export default function HistoryPage() {
                             {new Date(latestScan.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
                         </div>
+                        {/* Score trend (paid): only on the unfiltered list, so it covers every scan */}
+                        {hasMultiple && filter === 'all' && limitStatus?.features?.trend && (
+                          <ScoreTrend points={domainScans} />
+                        )}
                       </div>
 
                       {/* Actions */}
@@ -459,7 +466,7 @@ export default function HistoryPage() {
                         )}
 
                         <Link
-                          href={`/history/${latestScan.id}`}
+                          href={`/scan/${latestScan.id}`}
                           className="inline-flex items-center justify-center rounded-full bg-choco-900 px-4 py-1.5 text-xs font-medium text-cream-50 transition hover:bg-choco-800"
                         >
                           View latest
@@ -499,7 +506,7 @@ export default function HistoryPage() {
 
                             <div className="shrink-0 flex items-center gap-3">
                               <Link
-                                href={`/history/${scan.id}`}
+                                href={`/scan/${scan.id}`}
                                 className="text-xs text-choco-600 hover:text-choco-900 hover:underline transition"
                               >
                                 Details
