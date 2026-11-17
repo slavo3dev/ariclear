@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 import { runScan, ScanError } from '@/lib/analysis/runScan';
 import { supabaseAriClearServer } from '@/lib/supabase/auth/server';
 import { rateLimit } from '@/lib/security/rateLimit';
-import { claimScanLimits, scanDenial } from '@/lib/entitlements';
+import { claimScanLimits, hasTwoModelScan, scanDenial } from '@/lib/entitlements';
 import {
 	getEntitlements,
 	recordScan,
@@ -18,8 +18,8 @@ import { createLogger, errorCode } from '@/lib/logger';
 import { normalizeDomain } from '@/lib/domain';
 
 export const runtime = 'nodejs';
-// A two-model scan (GPT and Claude review, then Claude merges) takes about
-// 1-2 minutes; see lib/analysis/claudeScan for the per-step limits.
+// A Legion two-model scan (GPT and Claude review, then Claude merges) takes
+// about 1-2 minutes; see lib/analysis/claudeScan for the per-step limits.
 export const maxDuration = 300;
 
 const log = createLogger('analyze');
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 		const denied = scanDenial(ent, domain);
 		if (denied) return NextResponse.json(denied, { status: 403 });
 
-		const scan = await runScan(url);
+		const scan = await runScan(url, { twoModel: hasTwoModelScan(ent) });
 
 		// Count the scan, reserve the site slot and save the report atomically.
 		// Parallel requests that all passed the pre-check stop here; only the

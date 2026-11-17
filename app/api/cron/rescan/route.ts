@@ -17,7 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAriClearAdmin } from '@/lib/supabase/admin';
 import { runScan } from '@/lib/analysis/runScan';
-import { claimScanLimits } from '@/lib/entitlements';
+import { claimScanLimits, hasTwoModelScan } from '@/lib/entitlements';
 import { getEntitlements, recordScan } from '@/lib/entitlements.server';
 import { buildDigest } from '@/lib/email/digest';
 import { emailProvider, sendEmail } from '@/lib/email';
@@ -32,16 +32,18 @@ const log = createLogger('cron/rescan');
 
 const BATCH = Math.min(50, Math.max(1, Number(process.env.RESCAN_BATCH) || 10));
 const MIN_AGE_DAYS = Math.max(1, Number(process.env.RESCAN_MIN_AGE_DAYS) || 7);
-const CONCURRENCY = 3;
+const CONCURRENCY = 2;
+/** Stop starting new scans after this, so the run ends inside maxDuration. */
+const TIME_BUDGET_MS = 230_000;
 /**
- * Stop starting new scans after this, so the run ends inside maxDuration.
- * A two-model scan can take up to ~210 s (lib/analysis/claudeScan limits),
- * so a scan started at 80 s still ends before 300 s.
+ * Legion two-model scans can take up to ~210 s (lib/analysis/claudeScan
+ * limits), so they only start in the first 80 s; later ones are deferred to
+ * the next run, where they are first in line (oldest first).
  */
-const TIME_BUDGET_MS = 80_000;
+const TWO_MODEL_START_BY_MS = 80_000;
 
 type Due = { user_id: string; domain: string; url: string };
-type Outcome = 'scanned' | 'failed' | 'skipped';
+type Outcome = 'scanned' | 'failed' | 'skipped' | 'deferred';
 
 function authorized(req: NextRequest): boolean {
 	const secret = process.env.CRON_SECRET;
@@ -95,15 +97,19 @@ async function sendDigest(
 	return (await sendEmail({ to, ...mail, unsubscribeUrl: unsub })) === 'sent';
 }
 
-async function rescanOne(site: Due): Promise<{ outcome: Outcome; emailed: boolean }> {
+async function rescanOne(site: Due, started: number): Promise<{ outcome: Outcome; emailed: boolean }> {
 	const ent = await getEntitlements(site.user_id);
 	if (!ent.isPaid) return { outcome: 'skipped', emailed: false };
+	const twoModel = hasTwoModelScan(ent);
+	if (twoModel && Date.now() - started > TWO_MODEL_START_BY_MS) {
+		return { outcome: 'deferred', emailed: false };
+	}
 
 	const before = await latestScores(site.user_id, site.domain);
 
 	let scan;
 	try {
-		scan = await runScan(site.url);
+		scan = await runScan(site.url, { twoModel });
 	} catch (err) {
 		log.warn('scan failed', { code: errorCode(err) });
 		// Move the site to the back of the queue so one broken site cannot
@@ -165,7 +171,7 @@ export async function GET(req: NextRequest) {
 			}
 			const site = queue.shift()!;
 			try {
-				const r = await rescanOne(site);
+				const r = await rescanOne(site, started);
 				counts[r.outcome]++;
 				if (r.emailed) counts.emailed++;
 			} catch (err) {

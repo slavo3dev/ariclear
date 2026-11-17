@@ -16,7 +16,7 @@ import {
 } from '@ariclear/components';
 import { getTierLabel } from '@/lib/plans';
 import { reportFromAnalyze } from '@/lib/report/build';
-import { CUSTOM_PLAN, PAID_PLANS, type PublicEntitlements } from '@/lib/entitlements';
+import { CUSTOM_PLAN, isLegion, PAID_PLANS, type PublicEntitlements } from '@/lib/entitlements';
 
 type ErrorCode =
 	| 'SCAN_LIMIT_REACHED'
@@ -105,61 +105,87 @@ function LoadingDots({ step }: { step: number }) {
 	);
 }
 
-function AriAnalyzingOverlay({ url }: { url: string }) {
-	// Timed to the two-model scan (lib/analysis/runScan -> combinedReport):
-	// GPT and Claude review in parallel, then Claude writes the final report.
-	// `ms` is roughly how long each stage takes; the last one waits for the
-	// answer.
-	const steps = useMemo(
-		() => [
-			{
-				label: 'Reading',
-				ms: 5000,
-				status: 'Reading your page like a first-time visitor',
-				quote: {
-					text: 'The first battle is won or lost in the opening moment.',
-					by: 'Samurai principle',
-				},
-			},
-			{
-				label: 'GPT review',
-				ms: 20000,
-				status: 'GPT is reviewing your clarity and AI-SEO',
-				quote: {
-					text: 'If it is not clear, it is not yet true.',
-					by: 'AriClear mantra',
-				},
-			},
-			{
-				label: 'Claude review',
-				ms: 30000,
-				status: 'Claude is reviewing the same page on its own',
-				quote: {
-					text: 'To know the path ahead, ask those coming back.',
-					by: 'Japanese proverb',
-				},
-			},
-			{
-				label: 'Comparing',
-				ms: 15000,
-				status: 'Comparing both reviews and checking them against your page',
-				quote: {
-					text: 'Victory comes from seeing what others do not.',
-					by: 'Miyamoto Musashi (paraphrase)',
-				},
-			},
-			{
-				label: 'Report',
-				ms: 0,
-				status: 'Writing your report and action plan',
-				quote: {
-					text: 'Perceive that which cannot be seen with the eye.',
-					by: 'Miyamoto Musashi',
-				},
-			},
-		],
-		[],
-	);
+type OverlayStep = {
+	label: string;
+	/** Roughly how long the stage takes; the last stage waits for the answer. */
+	ms: number;
+	status: string;
+	quote: { text: string; by: string };
+};
+
+/** GPT-only scan (every plan except Legion): about 10-20 seconds. */
+const SINGLE_MODEL_STEPS: OverlayStep[] = [
+	{
+		label: 'Human scan',
+		ms: 2200,
+		status: 'Sniffing your hero message',
+		quote: { text: 'The first battle is won or lost in the opening moment.', by: 'Samurai principle' },
+	},
+	{
+		label: '10-second test',
+		ms: 2200,
+		status: 'Testing what humans understand in 10 seconds',
+		quote: { text: 'If it is not clear, it is not yet true.', by: 'AriClear mantra' },
+	},
+	{
+		label: 'AI read',
+		ms: 2200,
+		status: 'Reading headings like an AI indexer',
+		quote: { text: 'To know the path ahead, ask those coming back.', by: 'Japanese proverb' },
+	},
+	{
+		label: 'Keywords',
+		ms: 2200,
+		status: 'Identifying missing context and keywords',
+		quote: { text: 'Victory comes from seeing what others do not.', by: 'Miyamoto Musashi (paraphrase)' },
+	},
+	{
+		label: 'Plan',
+		ms: 0,
+		status: 'Forming a clear plan of action',
+		quote: { text: 'Perceive that which cannot be seen with the eye.', by: 'Miyamoto Musashi' },
+	},
+];
+
+/**
+ * Legion two-model scan (lib/analysis/runScan -> combinedReport): GPT and
+ * Claude review in parallel, then Claude writes the final report. 1-2 minutes.
+ */
+const TWO_MODEL_STEPS: OverlayStep[] = [
+	{
+		label: 'Reading',
+		ms: 5000,
+		status: 'Reading your page like a first-time visitor',
+		quote: { text: 'The first battle is won or lost in the opening moment.', by: 'Samurai principle' },
+	},
+	{
+		label: 'GPT review',
+		ms: 20000,
+		status: 'GPT is reviewing your clarity and AI-SEO',
+		quote: { text: 'If it is not clear, it is not yet true.', by: 'AriClear mantra' },
+	},
+	{
+		label: 'Claude review',
+		ms: 30000,
+		status: 'Claude is reviewing the same page on its own',
+		quote: { text: 'To know the path ahead, ask those coming back.', by: 'Japanese proverb' },
+	},
+	{
+		label: 'Comparing',
+		ms: 15000,
+		status: 'Comparing both reviews and checking them against your page',
+		quote: { text: 'Victory comes from seeing what others do not.', by: 'Miyamoto Musashi (paraphrase)' },
+	},
+	{
+		label: 'Report',
+		ms: 0,
+		status: 'Writing your report and action plan',
+		quote: { text: 'Perceive that which cannot be seen with the eye.', by: 'Miyamoto Musashi' },
+	},
+];
+
+function AriAnalyzingOverlay({ url, twoModel }: { url: string; twoModel: boolean }) {
+	const steps = twoModel ? TWO_MODEL_STEPS : SINGLE_MODEL_STEPS;
 
 	const [step, setStep] = useState(0);
 	const [tick, setTick] = useState(0);
@@ -245,7 +271,9 @@ function AriAnalyzingOverlay({ url }: { url: string }) {
 					</div>
 
 					<p className='mt-3 text-[11px] text-choco-300'>
-						Two AI models review your page, so this takes 1–2 minutes. Keep this tab open.
+						{twoModel
+							? 'Legion scan: two AI models review your page, so this takes 1–2 minutes. Keep this tab open.'
+							: 'Calm analysis. No rushing. Clarity takes discipline.'}
 					</p>
 				</div>
 			</div>
@@ -529,7 +557,12 @@ export default function ScanPage() {
 				onClose={closeAuth}
 				initialMode='login'
 			/>
-			{loading ? <AriAnalyzingOverlay url={cleanedUrl} /> : null}
+			{loading ? <AriAnalyzingOverlay
+					url={cleanedUrl}
+					twoModel={
+						!!limitStatus?.isPaid && isLegion(limitStatus.tier, limitStatus.limit)
+					}
+				/> : null}
 
 			<main className='flex-1 bg-cream-50'>
 				<div className='mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8'>

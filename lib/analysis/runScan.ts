@@ -3,10 +3,11 @@
 // and /api/cron/rescan (scheduled re-scans):
 //   fetch page (SSRF-safe) -> extract -> report -> sanitize, plus the
 //   deterministic technical score in parallel.
-// The report is the two-model report (combinedReport: GPT and Claude review
-// independently, scores averaged, Claude merges the text), or GPT alone when
-// SCAN_MODE=single or no Anthropic key is set. The homepage demo does not use
-// this file and stays on GPT alone.
+// The report is GPT alone, or for Legion plans (the caller decides, see
+// hasTwoModelScan in lib/entitlements) the two-model report (combinedReport:
+// GPT and Claude review independently, scores averaged, Claude merges the
+// text). SCAN_MODE=single or a missing Anthropic key forces GPT alone. The
+// homepage demo does not use this file and stays on GPT alone.
 // Saving is the caller's job (recordScan), because the caller owns the
 // plan limits.
 
@@ -218,18 +219,23 @@ export async function combinedReport(url: string, html: string): Promise<Combine
 }
 
 /**
- * Which pipeline a scan uses. SCAN_MODE=single turns the two-model scan off
- * (GPT only) without a deploy; so does a missing ANTHROPIC_API_KEY.
+ * Kill switch for the two-model scan: SCAN_MODE=single turns it off (GPT
+ * only) without a deploy; so does a missing ANTHROPIC_API_KEY.
  */
 function twoModelScanEnabled(): boolean {
 	return process.env.SCAN_MODE !== 'single' && claudeConfigured();
 }
 
-/** Run a full scan of `url`. Throws ScanError with a user-safe message. */
-export async function runScan(url: string): Promise<ScanOutput> {
+/**
+ * Run a full scan of `url`. Throws ScanError with a user-safe message.
+ * `twoModel`: use the two-model report (Legion plans, see hasTwoModelScan).
+ */
+export async function runScan(url: string, opts: { twoModel?: boolean } = {}): Promise<ScanOutput> {
 	const html = await fetchPage(url);
 	const reportFor = async () =>
-		twoModelScanEnabled() ? (await combinedReport(url, html)).report : modelReport(url, html);
+		opts.twoModel && twoModelScanEnabled()
+			? (await combinedReport(url, html)).report
+			: modelReport(url, html);
 	const [report, tech] = await Promise.all([reportFor(), technicalScore(url)]);
 	return {
 		report,

@@ -58,6 +58,15 @@ export function isLegion(tier: string | null | undefined, websitesLimit: number 
 	return tier === 'pro' && (websitesLimit ?? 0) > PAID_PLANS.pro.websites;
 }
 
+/**
+ * The two-model scan (GPT and Claude review, Claude merges; about $0.25 and
+ * 1-2 minutes per scan) is a Legion feature. Every other plan, and the
+ * homepage demo, uses GPT alone (about $0.001 per scan).
+ */
+export function hasTwoModelScan(ent: { isPaid: boolean; tier: string; websitesLimit: number }): boolean {
+	return ent.isPaid && isLegion(ent.tier, ent.websitesLimit);
+}
+
 const FREE_FEATURES: Record<Feature, boolean> = {
 	rescan: false,
 	rewriteTest: false,
