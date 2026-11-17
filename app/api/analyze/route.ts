@@ -18,6 +18,9 @@ import { createLogger, errorCode } from '@/lib/logger';
 import { normalizeDomain } from '@/lib/domain';
 
 export const runtime = 'nodejs';
+// A two-model scan (GPT and Claude review, then Claude merges) takes about
+// 1-2 minutes; see lib/analysis/claudeScan for the per-step limits.
+export const maxDuration = 300;
 
 const log = createLogger('analyze');
 

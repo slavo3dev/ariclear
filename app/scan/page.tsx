@@ -106,43 +106,52 @@ function LoadingDots({ step }: { step: number }) {
 }
 
 function AriAnalyzingOverlay({ url }: { url: string }) {
+	// Timed to the two-model scan (lib/analysis/runScan -> combinedReport):
+	// GPT and Claude review in parallel, then Claude writes the final report.
+	// `ms` is roughly how long each stage takes; the last one waits for the
+	// answer.
 	const steps = useMemo(
 		() => [
 			{
-				label: 'Human scan',
-				status: 'Sniffing your hero message',
+				label: 'Reading',
+				ms: 5000,
+				status: 'Reading your page like a first-time visitor',
 				quote: {
 					text: 'The first battle is won or lost in the opening moment.',
 					by: 'Samurai principle',
 				},
 			},
 			{
-				label: '10-second test',
-				status: 'Testing what humans understand in 10 seconds',
+				label: 'GPT review',
+				ms: 20000,
+				status: 'GPT is reviewing your clarity and AI-SEO',
 				quote: {
 					text: 'If it is not clear, it is not yet true.',
 					by: 'AriClear mantra',
 				},
 			},
 			{
-				label: 'AI read',
-				status: 'Reading headings like an AI indexer',
+				label: 'Claude review',
+				ms: 30000,
+				status: 'Claude is reviewing the same page on its own',
 				quote: {
 					text: 'To know the path ahead, ask those coming back.',
 					by: 'Japanese proverb',
 				},
 			},
 			{
-				label: 'Keywords',
-				status: 'Identifying missing context and keywords',
+				label: 'Comparing',
+				ms: 15000,
+				status: 'Comparing both reviews and checking them against your page',
 				quote: {
 					text: 'Victory comes from seeing what others do not.',
 					by: 'Miyamoto Musashi (paraphrase)',
 				},
 			},
 			{
-				label: 'Plan',
-				status: 'Forming a clear plan of action',
+				label: 'Report',
+				ms: 0,
+				status: 'Writing your report and action plan',
 				quote: {
 					text: 'Perceive that which cannot be seen with the eye.',
 					by: 'Miyamoto Musashi',
@@ -152,15 +161,20 @@ function AriAnalyzingOverlay({ url }: { url: string }) {
 		[],
 	);
 
-	const STEP_DURATION = 2200;
 	const [step, setStep] = useState(0);
+	const [tick, setTick] = useState(0);
 
 	useEffect(() => {
-		const t = window.setInterval(() => {
-			setStep((v) => (v < steps.length - 1 ? v + 1 : v));
-		}, STEP_DURATION);
+		if (step >= steps.length - 1) return;
+		const t = window.setTimeout(() => setStep((v) => v + 1), steps[step].ms);
+		return () => window.clearTimeout(t);
+	}, [step, steps]);
+
+	// Animates the dots independently of the (slow) stage changes.
+	useEffect(() => {
+		const t = window.setInterval(() => setTick((v) => v + 1), 700);
 		return () => window.clearInterval(t);
-	}, [steps.length]);
+	}, []);
 
 	const current = steps[step];
 
@@ -184,7 +198,7 @@ function AriAnalyzingOverlay({ url }: { url: string }) {
 					</div>
 
 					<div className='mt-4 flex items-center gap-2 rounded-full bg-choco-800 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-choco-200'>
-						Ari is sniffing <LoadingDots step={step} />
+						Ari is sniffing <LoadingDots step={tick} />
 					</div>
 
 					<p className='mt-3 text-sm font-medium text-cream-50'>
@@ -231,7 +245,7 @@ function AriAnalyzingOverlay({ url }: { url: string }) {
 					</div>
 
 					<p className='mt-3 text-[11px] text-choco-300'>
-						Calm analysis. No rushing. Clarity takes discipline.
+						Two AI models review your page, so this takes 1–2 minutes. Keep this tab open.
 					</p>
 				</div>
 			</div>

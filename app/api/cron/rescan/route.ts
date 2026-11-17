@@ -32,9 +32,13 @@ const log = createLogger('cron/rescan');
 
 const BATCH = Math.min(50, Math.max(1, Number(process.env.RESCAN_BATCH) || 10));
 const MIN_AGE_DAYS = Math.max(1, Number(process.env.RESCAN_MIN_AGE_DAYS) || 7);
-const CONCURRENCY = 2;
-/** Stop starting new scans after this, so the run ends inside maxDuration. */
-const TIME_BUDGET_MS = 230_000;
+const CONCURRENCY = 3;
+/**
+ * Stop starting new scans after this, so the run ends inside maxDuration.
+ * A two-model scan can take up to ~210 s (lib/analysis/claudeScan limits),
+ * so a scan started at 80 s still ends before 300 s.
+ */
+const TIME_BUDGET_MS = 80_000;
 
 type Due = { user_id: string; domain: string; url: string };
 type Outcome = 'scanned' | 'failed' | 'skipped';

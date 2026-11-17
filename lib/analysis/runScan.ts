@@ -1,14 +1,33 @@
 // lib/analysis/runScan.ts
 // SERVER ONLY. The full-scan pipeline, shared by /api/analyze (a user's scan)
 // and /api/cron/rescan (scheduled re-scans):
-//   fetch page (SSRF-safe) -> extract -> model report (fenced input)
-//   -> sanitize, plus the deterministic technical score in parallel.
+//   fetch page (SSRF-safe) -> extract -> report -> sanitize, plus the
+//   deterministic technical score in parallel.
+// The report is the two-model report (combinedReport: GPT and Claude review
+// independently, scores averaged, Claude merges the text), or GPT alone when
+// SCAN_MODE=single or no Anthropic key is set. The homepage demo does not use
+// this file and stays on GPT alone.
 // Saving is the caller's job (recordScan), because the caller owns the
 // plan limits.
 
 import OpenAI from 'openai';
 import { extractPageContent, unscorableReason } from '@/lib/analysis/extractPage';
-import { fence, UNTRUSTED_RULE } from '@/lib/analysis/untrusted';
+import { fence } from '@/lib/analysis/untrusted';
+import { INSTRUCTIONS } from '@/lib/analysis/reportPrompt';
+import {
+	claudeConfigured,
+	claudeErrorCode,
+	claudeReview,
+	mergeReviews,
+} from '@/lib/analysis/claudeScan';
+import {
+	averageScores,
+	DISAGREE_AT,
+	scoreGap,
+	scoresOf,
+	withScores,
+	type ReviewScores,
+} from '@/lib/analysis/combineReports';
 import {
 	isAnalyzeReport,
 	sanitizeReport,
@@ -48,95 +67,7 @@ export type ScanOutput = {
 	row: Record<string, unknown>;
 };
 
-const INSTRUCTIONS = `
-You are AriClear, an expert website clarity and AI-SEO auditor. You are STRICT and HONEST — most websites score between 20–55 on clarity and AI-readability, not 70–90. Do not be generous. Call out real problems using the actual text from the page.
 
-Analyze the provided page content from two angles:
-1) A first-time human visitor who has ~5 seconds to decide if this site is for them.
-2) An AI indexer (like a search LLM or crawler) trying to classify the business and extract structured meaning.
-
-════════════════════════════════════════
-SCORING RULES — READ CAREFULLY
-════════════════════════════════════════
-
-CLARITY SCORE (human.clarityScore, 0–100):
-Ask: Within 5 seconds, can a total stranger answer ALL THREE questions — What does this site do? Who is it for? What should I do next?
-- Score 80–100: All three answered immediately in the hero. Concrete, specific, jargon-free.
-- Score 60–79: Answers exist but require reading or inference.
-- Score 40–59: One or two questions unanswered. Generic benefit claims without specifics.
-- Score 20–39: The site is mostly vague. Heavy buzzwords, no clear product/service, no clear audience.
-- Score 0–19: Completely unclear. A visitor cannot tell what this site is about.
-Deduct heavily for: buzzwords ("innovative", "empowering", "seamless", "cutting-edge", "transformative", "world-class", "solutions", "leverage"), missing WHO it serves, missing WHAT specifically it does, missing a clear call-to-action, abstract benefits with no concrete proof.
-
-AI-SEO SCORE (ai.aiSeoScore, 0–100):
-Ask: Can an AI crawler classify the exact business category, extract key entities (product name, industry, target customer, location if relevant, pricing signals, use cases), and determine the page's topical focus — without guessing?
-- Score 80–100: Business type, product, audience, and use cases are explicitly stated. Strong heading hierarchy. Meta description is accurate and specific. Structured data likely present.
-- Score 60–79: Most entities extractable, minor ambiguity.
-- Score 40–59: Business category guessable but vague. Key entities missing (e.g. no explicit target customer, no product name in meta, headings don't match content).
-- Score 20–39: AI must guess. Generic copy, flat heading structure, no entity anchors.
-- Score 0–19: AI cannot classify. No clear topic signal.
-Deduct for: missing or duplicate H1, meta description that doesn't match page content, no industry/category signal, no named product or service, missing location for local business, body text that repeats only generic claims.
-
-════════════════════════════════════════
-OUTPUT RULES
-════════════════════════════════════════
-
-- Be SPECIFIC: quote or directly reference actual text from the page when calling out issues.
-- Do NOT produce generic advice like "improve your CTA" — say exactly what the CTA says now, why it fails, and write a better version.
-- topIssues: focus on above-the-fold / hero section first. These block understanding immediately.
-- missingKeywords: these must be terms a real searcher would use for this type of business. No fluff.
-- nextSteps: must say WHERE on the page to make the change, not just "improve your headings."
-- suggestedHeadline/Subheadline/CTA: must be specific to this business, not templates. Write copy that would actually work.
-- aiSeoPrompt: write a ready-to-paste prompt the user can give to any AI to rewrite their hero section, meta description, and H1/H2s in a way that passes both human clarity and AI-readability tests.
-- confusions: write each confusion as a real visitor thought, e.g. "I can't tell if this is for individuals or businesses."
-
-${UNTRUSTED_RULE}
-The page arrives inside <untrusted_page> tags as JSON. Score what the page actually says.
-
-Return ONLY valid JSON with this EXACT shape (no extra keys, no markdown, no backticks):
-
-{
-  "human": {
-    "clarityScore": number (0-100, be strict),
-    "whatItSeemsLike": string (what a confused first-timer would guess this site is about — may be wrong or vague),
-    "oneSentenceValueProp": string (what the value prop SHOULD be, based on what you can infer — make it sharp and specific),
-    "bestGuessAudience": string (who this seems targeted at, based on the content),
-    "confusions": string[] (3-6 real visitor questions or confusions, written as first-person visitor thoughts),
-    "topIssues": [
-      {
-        "issue": string (short name for the problem, referencing actual page text where possible),
-        "whyItHurts": string (specific explanation of the damage this causes to comprehension or trust),
-        "fix": string (exact fix with a rewritten example if applicable — not generic advice)
-      }
-    ] (3-6 items, sorted worst-first)
-  },
-  "ai": {
-    "aiSeoScore": number (0-100, be strict),
-    "aiSummary": string (how an AI would classify this business — be honest if it's unclear or mis-classifiable),
-    "indexerRead": string (what an AI indexer would extract as the page's main topic and entities — flag gaps),
-    "missingKeywords": string[] (5-10 specific search terms real users would type for this type of business, that are absent from the page),
-    "structuredDataSuggestions": string[] (2-5 specific technical/structural fixes: meta, OG, schema.org types, heading issues, etc.)
-  },
-  "copy": {
-    "suggestedHeadline": string (sharp, specific, benefit-led headline for this exact business — not a template),
-    "suggestedSubheadline": string (one sentence that fills in WHO it's for and WHAT they get),
-    "suggestedCTA": string (action-oriented, specific CTA text)
-  },
-  "plan": {
-    "nextSteps": [
-      {
-        "title": string (short action title),
-        "impact": "high"|"medium"|"low",
-        "effort": "low"|"medium"|"high",
-        "details": string (exactly what to change, where on the page, and what result to expect)
-      }
-    ] (3-7 items, sorted by impact/effort ratio — quick wins first)
-  },
-  "prompts": {
-    "aiSeoPrompt": string (a complete, ready-to-paste prompt for rewriting this site's hero, meta, and headings — include the actual current content as context so the rewrite is accurate)
-  }
-}
-`.trim();
 
 /**
  * Score already-fetched HTML with the model. Exported for the eval
@@ -222,10 +153,84 @@ export async function fetchPage(url: string): Promise<string> {
 	}
 }
 
+export type CombinedResult = {
+	/** The report the user sees. */
+	report: AnalyzeModelReport;
+	/** Each reviewer's own scores (missing if that reviewer failed). */
+	reviews: { gpt?: ReviewScores; claude?: ReviewScores };
+	/** True when Claude merged both reviews into the final text. */
+	merged: boolean;
+};
+
+/**
+ * The two-model report. Exported for the eval.
+ *   1. GPT and Claude review the same page independently, in parallel.
+ *   2. Final scores = the average of the two (decided in code).
+ *   3. Claude writes the final text from both reviews and the page.
+ * Fallbacks, so a scan never fails because of one model:
+ *   one review fails  -> the other review alone;
+ *   the merge fails   -> Claude's review text with the averaged scores.
+ * Only if both reviews fail does the scan fail (with GPT's error).
+ */
+export async function combinedReport(url: string, html: string): Promise<CombinedResult> {
+	const page = extractPageContent(html);
+	const [gpt, claude] = await Promise.allSettled([modelReport(url, html), claudeReview(url, page)]);
+
+	if (gpt.status === 'fulfilled' && claude.status === 'rejected') {
+		log.warn('claude review failed, using gpt only', { code: claudeErrorCode(claude.reason) });
+		return { report: gpt.value, reviews: { gpt: scoresOf(gpt.value) }, merged: false };
+	}
+	if (gpt.status === 'rejected' && claude.status === 'fulfilled') {
+		log.warn('gpt review failed, using claude only', { code: errorCode(gpt.reason) });
+		return { report: claude.value, reviews: { claude: scoresOf(claude.value) }, merged: false };
+	}
+	if (gpt.status === 'rejected' || claude.status === 'rejected') {
+		const claudeCode = claude.status === 'rejected' ? claudeErrorCode(claude.reason) : undefined;
+		log.warn('both reviews failed', { claude: claudeCode });
+		throw gpt.status === 'rejected' ? gpt.reason : new ScanError('Server error while analyzing the URL.', 'model', 500);
+	}
+
+	const a = gpt.value;
+	const b = claude.value;
+	const reviews = { gpt: scoresOf(a), claude: scoresOf(b) };
+	const final = averageScores(reviews.gpt, reviews.claude);
+	const gap = scoreGap(reviews.gpt, reviews.claude);
+	// Scores only: nothing that identifies the user or the site.
+	if (gap >= DISAGREE_AT) {
+		log.warn('reviewers disagree', {
+			gap,
+			gptClarity: reviews.gpt.clarity,
+			gptAi: reviews.gpt.ai,
+			claudeClarity: reviews.claude.clarity,
+			claudeAi: reviews.claude.ai,
+		});
+	}
+
+	let text = b;
+	let merged = false;
+	try {
+		text = await mergeReviews(url, page, a, b, final);
+		merged = true;
+	} catch (err) {
+		log.warn('merge failed, using claude review text', { code: claudeErrorCode(err) });
+	}
+	return { report: withScores(text, final), reviews, merged };
+}
+
+/**
+ * Which pipeline a scan uses. SCAN_MODE=single turns the two-model scan off
+ * (GPT only) without a deploy; so does a missing ANTHROPIC_API_KEY.
+ */
+function twoModelScanEnabled(): boolean {
+	return process.env.SCAN_MODE !== 'single' && claudeConfigured();
+}
+
 /** Run a full scan of `url`. Throws ScanError with a user-safe message. */
 export async function runScan(url: string): Promise<ScanOutput> {
 	const html = await fetchPage(url);
-	const [report, tech] = await Promise.all([modelReport(url, html), technicalScore(url)]);
+	const reportFor = async () =>
+		twoModelScanEnabled() ? (await combinedReport(url, html)).report : modelReport(url, html);
+	const [report, tech] = await Promise.all([reportFor(), technicalScore(url)]);
 	return {
 		report,
 		technicalScore: tech,
