@@ -18,20 +18,37 @@
 //   pnpm eval --only=stripe,ibm     # URLs containing any of these
 //   pnpm eval --dry-run             # fetch + technical checks only, no model calls
 //   pnpm eval --threshold=5 --concurrency=3
+//   pnpm eval --mode=combined       # the two-model report (GPT + Claude, merged)
 //
-// Needs OPENAI_API_KEY (read from .env by the pnpm script). Each run is one
-// gpt-4o-mini call, so the full set is 30 x N calls.
+// --mode=gpt (default) scores with gpt-4o-mini alone: one call per run.
+// --mode=combined runs the production two-model report (combinedReport):
+// a GPT review, a Claude review and a Claude merge per run, and also records
+// each reviewer's own scores, so GPT and Claude stability can be compared.
+// It costs far more (roughly $0.20-0.30 per run) and takes 1-2 min per run.
+//
+// Needs OPENAI_API_KEY, and ANTHROPIC_API_KEY for --mode=combined (read from
+// .env by the pnpm script).
 // Results are written to scripts/eval/results/<timestamp>.json (gitignored).
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchPage, modelReport, ScanError } from '@/lib/analysis/runScan';
+import { combinedReport, fetchPage, modelReport, ScanError } from '@/lib/analysis/runScan';
+import type { AnalyzeModelReport } from '@/lib/analysis/scanRow';
+import type { ReviewScores } from '@/lib/analysis/combineReports';
 import { runTechnicalChecks } from '@/lib/analysis/technicalChecks';
 
 type Tier = 'low' | 'mid' | 'high';
 type GoldenUrl = { url: string; category: string; expect: Tier; note?: string };
-type Run = { clarity: number; ai: number; overall: number; firstIssue: string | null };
+type Run = {
+	clarity: number;
+	ai: number;
+	overall: number;
+	firstIssue: string | null;
+	/** --mode=combined: each reviewer's own scores, and whether the merge ran. */
+	reviews?: { gpt?: ReviewScores; claude?: ReviewScores };
+	merged?: boolean;
+};
 type Stats = {
 	mean: number;
 	sd: number;
@@ -66,6 +83,7 @@ const N = Math.max(1, Number(arg('n')) || 3);
 const THRESHOLD = Number(arg('threshold')) || 5;
 const CONCURRENCY = Math.max(1, Number(arg('concurrency')) || 3);
 const DRY_RUN = arg('dry-run') === 'true';
+const MODE = arg('mode') === 'combined' ? 'combined' : 'gpt';
 const ONLY = arg('only')
 	?.split(',')
 	.map((s) => s.trim().toLowerCase())
@@ -104,7 +122,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function scoreOnce(url: string, html: string): Promise<Run> {
 	for (let attempt = 0; ; attempt++) {
 		try {
-			const r = await modelReport(url, html);
+			let r: AnalyzeModelReport;
+			let extra: Pick<Run, 'reviews' | 'merged'> = {};
+			if (MODE === 'combined') {
+				const c = await combinedReport(url, html);
+				r = c.report;
+				extra = { reviews: c.reviews, merged: c.merged };
+			} else {
+				r = await modelReport(url, html);
+			}
 			const clarity = r.human.clarityScore;
 			const ai = r.ai.aiSeoScore;
 			const issues = r.human.topIssues as Array<{ issue?: string }>;
@@ -113,6 +139,7 @@ async function scoreOnce(url: string, html: string): Promise<Run> {
 				ai,
 				overall: Math.round((clarity + ai) / 2), // same formula as the app
 				firstIssue: issues[0]?.issue ?? null,
+				...extra,
 			};
 		} catch (err) {
 			if (err instanceof ScanError && err.kind === 'rate_limited' && attempt < 3) {
@@ -220,6 +247,39 @@ function printReport(results: Result[]) {
 				? ` — ${offTier.map((r) => `${host(r.url)} (${r.tier}, expected ${r.expect})`).join(', ')}`
 				: ''),
 	);
+
+	if (MODE === 'combined') printReviewerComparison(scored, host);
+}
+
+/** --mode=combined: how stable is each reviewer on its own, and how far apart are they? */
+function printReviewerComparison(scored: Result[], host: (u: string) => string) {
+	const sdOf = (xs: number[]) => (xs.length > 1 ? stats(xs).sd : 0);
+	const rows = scored.map((r) => {
+		const g = r.runs.flatMap((x) => (x.reviews?.gpt ? [x.reviews.gpt] : []));
+		const c = r.runs.flatMap((x) => (x.reviews?.claude ? [x.reviews.claude] : []));
+		const mean = (xs: number[]) => (xs.length ? round1(xs.reduce((a, b) => a + b, 0) / xs.length) : NaN);
+		const overall = (s: ReviewScores[]) => s.map((x) => (x.clarity + x.ai) / 2);
+		return {
+			site: host(r.url),
+			gpt: mean(overall(g)),
+			claude: mean(overall(c)),
+			gptSd: sdOf(overall(g)),
+			claudeSd: sdOf(overall(c)),
+			merged: r.runs.filter((x) => x.merged).length,
+		};
+	});
+	console.log(`\n${pad('site', 22)}${lpad('gpt overall', 14)}${lpad('claude overall', 16)}${lpad('gap', 6)}  merged`);
+	for (const x of rows) {
+		const gap = Number.isNaN(x.gpt) || Number.isNaN(x.claude) ? '—' : round1(Math.abs(x.gpt - x.claude));
+		console.log(
+			`${pad(x.site, 22)}${lpad(`${x.gpt} ±${x.gptSd}`, 14)}${lpad(`${x.claude} ±${x.claudeSd}`, 16)}${lpad(gap, 6)}  ${x.merged}/${N}`,
+		);
+	}
+	const avg = (xs: number[]) => (xs.length ? round1(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
+	console.log(
+		`mean sd of overall   gpt ${avg(rows.map((x) => x.gptSd))}  claude ${avg(rows.map((x) => x.claudeSd))}\n` +
+			`mean gpt-claude gap  ${avg(rows.filter((x) => !Number.isNaN(x.gpt) && !Number.isNaN(x.claude)).map((x) => Math.abs(x.gpt - x.claude)))}`,
+	);
 }
 
 // ─── main ──────────────────────────────────────────────────────────────────
@@ -236,11 +296,16 @@ async function main() {
 	if (!DRY_RUN && !process.env.OPENAI_API_KEY) {
 		throw new Error('OPENAI_API_KEY is not set (the pnpm script reads it from .env).');
 	}
+	if (!DRY_RUN && MODE === 'combined' && !process.env.ANTHROPIC_API_KEY) {
+		throw new Error('ANTHROPIC_API_KEY is not set (needed for --mode=combined).');
+	}
 
 	console.log(
 		DRY_RUN
 			? `Dry run: fetching ${urls.length} URLs, no model calls.`
-			: `Scoring ${urls.length} URLs x ${N} runs = ${urls.length * N} model calls (gpt-4o-mini).`,
+			: MODE === 'combined'
+				? `Scoring ${urls.length} URLs x ${N} runs with the two-model report (3 calls per run).`
+				: `Scoring ${urls.length} URLs x ${N} runs = ${urls.length * N} model calls (gpt-4o-mini).`,
 	);
 
 	const results: Result[] = new Array(urls.length);
@@ -265,7 +330,7 @@ async function main() {
 		const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
 		writeFileSync(
 			file,
-			JSON.stringify({ ranAt: new Date().toISOString(), n: N, threshold: THRESHOLD, results }, null, 2),
+			JSON.stringify({ ranAt: new Date().toISOString(), mode: MODE, n: N, threshold: THRESHOLD, results }, null, 2),
 		);
 		console.log(`\nSaved ${path.relative(process.cwd(), file)}`);
 	}
