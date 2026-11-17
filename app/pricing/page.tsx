@@ -23,7 +23,7 @@ export default function PricingPage() {
 		<div className='flex min-h-screen flex-col'>
 			<Navbar />
 			<main className='flex-1'>
-				<PricingSection />
+				<PricingSection headingAs='h1' />
 			</main>
 			<SiteFooter />
 		</div>

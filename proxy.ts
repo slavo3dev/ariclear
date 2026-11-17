@@ -90,7 +90,7 @@ export const config = {
 		// Signed-in pages
 		'/dashboard/:path*',
 		'/history/:path*',
-	'/brand-awareness',
+		'/brand-awareness',
 		'/scan/:id+',
 		// Account and paid APIs (the Stripe webhook is deliberately absent)
 		'/api/analyze',

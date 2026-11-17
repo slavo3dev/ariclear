@@ -155,7 +155,12 @@ const plans: {
 	},
 ];
 
-export function PricingSection() {
+/**
+ * headingAs: 'h1' on /pricing, where this section is the page's main
+ * heading; 'h2' on the homepage, which already has an h1.
+ */
+export function PricingSection({ headingAs = 'h2' }: { headingAs?: 'h1' | 'h2' } = {}) {
+	const Heading = headingAs;
 	const { start, pending, authOpen, closeAuth } = useCheckout();
 	const { open: openContact } = usePreorder();
 
@@ -167,9 +172,9 @@ export function PricingSection() {
 					<p className='text-xs font-bold uppercase tracking-[0.2em] text-choco-500 mb-3'>
 						Pricing
 					</p>
-					<h2 className='text-4xl font-bold text-choco-900 sm:text-5xl mb-4 tracking-tight'>
+					<Heading className='text-4xl font-bold text-choco-900 sm:text-5xl mb-4 tracking-tight'>
 						Simple pricing. Clear value.
-					</h2>
+					</Heading>
 					<p className='text-lg text-choco-600 max-w-xl mx-auto'>
 						Try the free demo scan above to see what your website is
 						actually saying to humans and AI. Pick a plan when you
