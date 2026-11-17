@@ -73,7 +73,10 @@ export default function RootLayout({
             {children}
           </PreorderProvider>
         </AuthProvider>
-        {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
+        {gaId ? (
+          // NEXT_PUBLIC_GA_DEBUG=1 sends events to GA's DebugView (testing only).
+          <GoogleAnalytics gaId={gaId} debugMode={process.env.NEXT_PUBLIC_GA_DEBUG === "1"} />
+        ) : null}
       </body>
     </html>
   );

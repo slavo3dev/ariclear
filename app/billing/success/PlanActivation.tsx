@@ -7,7 +7,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getTierLabel } from '@/lib/plans';
-import type { PublicEntitlements } from '@/lib/entitlements';
+import { isPaidTier, type PublicEntitlements } from '@/lib/entitlements';
+import { trackPurchaseOnce } from '@/lib/analytics';
 
 const POLL_MS = 2_000;
 const MAX_POLLS = 20; // ~40 seconds
@@ -37,6 +38,8 @@ export function PlanActivation() {
 				if (res.ok) {
 					const ent = (await res.json()) as PublicEntitlements;
 					if (ent.isPaid && !ent.isComp) {
+						const sessionId = new URLSearchParams(window.location.search).get('session_id');
+						if (sessionId && isPaidTier(ent.tier)) void trackPurchaseOnce(ent.tier, sessionId);
 						if (!cancelled) setState({ kind: 'active', ent });
 						return;
 					}

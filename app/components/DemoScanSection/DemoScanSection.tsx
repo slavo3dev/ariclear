@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { httpReason, track } from '@/lib/analytics';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -310,6 +311,7 @@ export function DemoScanSection({
 		setState('loading');
 		setErrorMsg('');
 		setResult(null);
+		track('demo_scan_start', {});
 
 		try {
 			const res = await fetch('/api/demo-scan', {
@@ -320,6 +322,9 @@ export function DemoScanSection({
 
 			if (!res.ok) {
 				const body = await res.json().catch(() => ({}));
+				track('demo_scan_error', {
+					reason: body?.errorCode ? String(body.errorCode).toLowerCase() : httpReason(res.status),
+				});
 				if (res.status === 429) {
 					setErrorMsg('Too many scans — try again in a minute.');
 				} else if (body?.errorCode === 'SITE_BLOCKED') {
@@ -336,7 +341,9 @@ export function DemoScanSection({
 			const data: DemoResult = await res.json();
 			setResult(data);
 			setState('result');
+			track('demo_scan_complete', { score: data.overallScore });
 		} catch {
+			track('demo_scan_error', { reason: 'network' });
 			setErrorMsg('Network error. Check your connection and try again.');
 			setState('error');
 		}

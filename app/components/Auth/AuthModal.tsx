@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { Button } from '@ariclear/components';
 import { api } from '@/lib/api/axios';
+import { track } from '@/lib/analytics';
 import { useAuth } from '../providers/AuthProvider';
 
 type Mode = 'login' | 'signup' | 'reset';
@@ -117,6 +118,7 @@ export function AuthModal({
 		try {
 			if (mode === 'login') {
 				await api.post('/auth/login', { email, password });
+				track('login', { method: 'email' });
 				await refreshUser();
 				onClose();
 			}
@@ -127,6 +129,7 @@ export function AuthModal({
 					password,
 					redirectTo: `${window.location.origin}/verify-email`,
 				});
+				track('sign_up', { method: 'email' });
 				setSuccess('Check your email to verify your account.');
 			}
 

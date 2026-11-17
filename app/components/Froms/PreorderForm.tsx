@@ -7,6 +7,7 @@ import type { FormEventHandler } from 'react';
 import { Button } from '@ariclear/components';
 import { toast } from 'react-hot-toast';
 import { CUSTOM_PLAN } from '@/lib/entitlements';
+import { track } from '@/lib/analytics';
 
 const CALENDLY_URL = 'https://calendly.com/slavo3/30min';
 
@@ -110,6 +111,11 @@ export function PreorderForm({
 				}
 				throw new Error(data?.error ?? 'Something went wrong');
 			}
+			track('generate_lead', {
+				lead_source: 'plan_request',
+				plan: String(resolvedTier),
+				websites: Number(websites) || 0,
+			});
 
 			setTimeout(() => {
 				setLoading(false);

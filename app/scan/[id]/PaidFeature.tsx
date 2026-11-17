@@ -8,6 +8,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import type { ChecklistItem, ScanReport } from '@/lib/report/types';
+import { track } from '@/lib/analytics';
 
 export function LockedFeature({
 	title,
@@ -67,6 +68,7 @@ export function PdfDownloadButton({
 				json.checklist as ChecklistItem[],
 			);
 			toast.success('PDF report downloaded!', { id: toastId });
+			track('pdf_download', {});
 		} catch (e) {
 			toast.error(
 				e instanceof Error && e.message !== 'Failed'

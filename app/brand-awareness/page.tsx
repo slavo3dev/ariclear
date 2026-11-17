@@ -19,6 +19,7 @@ import {
 	type PlatformResult,
 } from '@/lib/brand/alignment';
 import { clearLastBrandCheck, loadLastBrandCheck, saveLastBrandCheck } from '@/lib/brand/lastCheck';
+import { httpReason, track } from '@/lib/analytics';
 
 type Inputs = Partial<Record<PlatformKey, PlatformInput>>;
 
@@ -151,6 +152,7 @@ function BrandAwareness() {
 		if (filled.length === 0) return setError('Add at least one profile: paste its bio (and handle).');
 
 		setRunning(true);
+		track('brand_check_start', { platforms: filled.length });
 		try {
 			const res = await fetch('/api/brand-awareness/analyze', {
 				method: 'POST',
@@ -159,9 +161,14 @@ function BrandAwareness() {
 			});
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok || !body.result) {
+				track('brand_check_error', { reason: res.ok ? 'bad_reply' : httpReason(res.status) });
 				setError(body.error || 'The brand check failed. Please try again.');
 				return;
 			}
+			track('brand_check_complete', {
+				platforms: body.result.platforms.length,
+				score: body.result.alignmentScore,
+			});
 			setResult(body.result);
 			setCheckedAt(body.checkedAt);
 			saveLastBrandCheck({
@@ -173,6 +180,7 @@ function BrandAwareness() {
 			});
 			window.scrollTo({ top: 0, behavior: 'smooth' });
 		} catch {
+			track('brand_check_error', { reason: 'network' });
 			setError('Could not reach AriClear. Check your connection and try again.');
 		} finally {
 			setRunning(false);

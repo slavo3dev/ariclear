@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import type { PaidTier } from '@/lib/entitlements';
+import { planEcommerce, track } from '@/lib/analytics';
 import { useAuth } from '../providers/AuthProvider';
 
 export function useCheckout() {
@@ -25,6 +26,7 @@ export function useCheckout() {
 		}
 
 		setPending(plan);
+		track('begin_checkout', planEcommerce(plan));
 		try {
 			const res = await fetch('/api/billing/checkout', {
 				method: 'POST',

@@ -15,6 +15,7 @@ import {
 	usePreorder,
 } from '@ariclear/components';
 import { getTierLabel } from '@/lib/plans';
+import { httpReason, track } from '@/lib/analytics';
 import { reportFromAnalyze } from '@/lib/report/build';
 import { CUSTOM_PLAN, isLegion, PAID_PLANS, type PublicEntitlements } from '@/lib/entitlements';
 
@@ -475,6 +476,10 @@ export default function ScanPage() {
 		setLoading(true);
 		setResult(null);
 
+		const twoModel = !!limitStatus?.isPaid && isLegion(limitStatus.tier, limitStatus.limit);
+		const plan = !limitStatus?.isPaid ? 'free' : twoModel ? 'legion' : limitStatus.tier;
+		track('scan_start', { plan, two_model: twoModel });
+
 		try {
 			const res = await fetch('/api/analyze', {
 				method: 'POST',
@@ -485,6 +490,10 @@ export default function ScanPage() {
 			const json = (await res.json()) as AnalyzeResponse;
 
 			if (!res.ok) {
+				track('scan_error', {
+					plan,
+					reason: json?.errorCode ? String(json.errorCode).toLowerCase() : httpReason(res.status),
+				});
 				if (res.status === 429) {
 					setResult({
 						error: json?.error || 'Rate limit reached.',
@@ -512,6 +521,12 @@ export default function ScanPage() {
 			}
 
 			setResult(json);
+			track('scan_complete', {
+				plan,
+				two_model: twoModel,
+				clarity_score: json.human?.clarityScore,
+				ai_seo_score: json.ai?.aiSeoScore,
+			});
 
 			// /api/analyze saves the scan itself and returns its id.
 			if (json.scanId) {
@@ -521,6 +536,7 @@ export default function ScanPage() {
 				await fetchLimitStatus();
 			}
 		} catch {
+			track('scan_error', { plan, reason: 'network' });
 			setResult({ error: 'Network error. Please try again.' });
 			toast.error('Network error. Please try again.');
 		} finally {

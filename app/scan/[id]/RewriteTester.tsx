@@ -4,6 +4,7 @@
 // "Test your rewrite": score new hero copy against the live site before publishing.
 
 import { useState } from 'react';
+import { track } from '@/lib/analytics';
 
 type Answers = { what: boolean; who: boolean; next: boolean };
 
@@ -87,6 +88,7 @@ export function RewriteTester({
 			if (!res.ok) throw new Error(json.error ?? 'Scoring failed');
 			const r = json.result as Result;
 			setResult(r);
+			track('rewrite_test', { before_score: r.before, after_score: r.after });
 			const saved = json.saved as { id: string; created_at: string } | null;
 			setAttempts((a) => [
 				{
