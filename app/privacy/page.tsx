@@ -61,6 +61,10 @@ export default function PrivacyPage() {
 			<ul>
 				<li>Supabase: database and sign-in.</li>
 				<li>OpenAI: analyses the page content you submit to produce reports.</li>
+				<li>
+					Anthropic (Claude): analyses page content for Legion scans, and the website and profile
+					text you submit for the brand alignment check.
+				</li>
 				<li>Stripe: payments and receipts.</li>
 				<li>Vercel: hosting.</li>
 				<li>Google Analytics: usage statistics.</li>
