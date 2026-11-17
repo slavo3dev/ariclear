@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar, SiteFooter, useAuth } from '@ariclear/components';
 import { getTierLabel } from '@/lib/plans';
+import { loadLastBrandCheck, type LastBrandCheck } from '@/lib/brand/lastCheck';
+import { PLATFORMS } from '@/lib/brand/alignment';
 import { createLogger, errorCode } from '@/lib/logger';
 
 const log = createLogger('dashboard');
@@ -234,6 +236,9 @@ export default function DashboardPage() {
 					</div>
 				)}
 
+				{/* Brand alignment */}
+				<BrandCard firstSiteUrl={sites[0]?.latest.url} />
+
 				{sites.length > 0 && (
 					<p className='mt-8 text-center text-sm text-choco-500'>
 						Looking for an older report?{' '}
@@ -377,6 +382,84 @@ function SiteCard({ site, canRescan }: { site: Site; canRescan: boolean }) {
 				)}
 			</div>
 		</div>
+	);
+}
+
+function BrandCard({ firstSiteUrl }: { firstSiteUrl?: string }) {
+	// The last check lives in this browser only. This card renders only after
+	// the client has loaded the user, never on the server, so reading storage
+	// here cannot cause a hydration mismatch.
+	const [last] = useState<LastBrandCheck | null>(() =>
+		typeof window === 'undefined' ? null : loadLastBrandCheck(),
+	);
+
+	const startHref = firstSiteUrl
+		? `/brand-awareness?url=${encodeURIComponent(firstSiteUrl)}`
+		: '/brand-awareness';
+
+	return (
+		<section className='mt-8'>
+			<div className='mb-3 flex items-center gap-2'>
+				<h2 className='text-lg font-semibold text-choco-900'>Brand alignment</h2>
+				<span className='rounded-full bg-choco-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cream-50'>
+					Beta
+				</span>
+			</div>
+			{last ? (
+				<div className='flex flex-wrap items-center gap-5 rounded-3xl border border-choco-100 bg-white p-5 shadow-soft'>
+					<div className='text-center'>
+						<p className={`text-4xl font-bold leading-none ${scoreTone(last.result.alignmentScore)}`}>
+							{last.result.alignmentScore}
+						</p>
+						<p className='mt-1 text-[11px] text-choco-500'>alignment</p>
+					</div>
+					<div className='min-w-0 flex-1'>
+						<p className='line-clamp-2 text-sm font-medium text-choco-900'>{last.result.verdict}</p>
+						<div className='mt-2 flex flex-wrap gap-1.5'>
+							{last.result.platforms.map((p) => (
+								<span
+									key={p.platform}
+									className='rounded-full bg-cream-50 px-2 py-0.5 text-xs text-choco-700'>
+									{PLATFORMS.find((d) => d.key === p.platform)?.label}{' '}
+									<span className={`font-semibold ${p.status === 'checked' ? scoreTone(p.score) : 'text-choco-400'}`}>
+										{p.status === 'checked' ? p.score : '—'}
+									</span>
+								</span>
+							))}
+						</div>
+						<p className='mt-2 text-[11px] text-choco-400'>Checked {timeAgo(last.checkedAt)}</p>
+					</div>
+					<Link
+						href='/brand-awareness'
+						className='rounded-xl bg-choco-900 px-4 py-2 text-sm font-semibold text-cream-50 transition hover:bg-choco-800'>
+						Open
+					</Link>
+				</div>
+			) : (
+				<div className='flex flex-wrap items-center gap-4 rounded-3xl border border-choco-100 bg-white p-5 shadow-soft'>
+					<div className='flex -space-x-2' aria-hidden>
+						{['bg-gradient-to-br from-fuchsia-500 to-orange-400', 'bg-[#0a66c2]', 'bg-black', 'bg-[#ff0000]'].map(
+							(c) => (
+								<span key={c} className={`h-9 w-9 rounded-xl ring-2 ring-white ${c}`} />
+							),
+						)}
+					</div>
+					<div className='min-w-0 flex-1'>
+						<p className='text-sm font-semibold text-choco-900'>
+							Do your social profiles say the same thing as your website?
+						</p>
+						<p className='mt-0.5 text-sm text-choco-600'>
+							Paste your Instagram, LinkedIn and other bios. Get a score for each and a matching rewrite.
+						</p>
+					</div>
+					<Link
+						href={startHref}
+						className='rounded-xl bg-choco-900 px-4 py-2 text-sm font-semibold text-cream-50 transition hover:bg-choco-800'>
+						Check my brand
+					</Link>
+				</div>
+			)}
+		</section>
 	);
 }
 

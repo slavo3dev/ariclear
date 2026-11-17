@@ -32,6 +32,7 @@ type SubscriptionInfo = {
 const APP_TABS = [
 	{ href: '/dashboard', label: 'Dashboard' },
 	{ href: '/history', label: 'History' },
+	{ href: '/brand-awareness', label: 'Brand' },
 ] as const;
 
 function usageColor(used: number, limit: number) {
